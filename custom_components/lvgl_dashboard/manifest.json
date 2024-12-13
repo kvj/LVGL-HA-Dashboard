@@ -1,0 +1,12 @@
+{
+  "domain": "lvgl_dashboard",
+  "name": "LVGL Dashboard",
+  "documentation": "https://github.com/kvj/LVGL-HA-Dashboard",
+  "issue_tracker": "https://github.com/kvj/LVGL-HA-Dashboard/issues",
+  "dependencies": ["esphome"],
+  "codeowners": ["@kvj"],
+  "requirements": ["Pillow>=10.2.0"],
+  "iot_class": "local_polling",
+  "config_flow": true,
+  "version": "0.1.0"
+}

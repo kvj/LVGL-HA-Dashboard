@@ -1,0 +1,32 @@
+{
+  "title": "LVGL Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "New Configuration",
+        "data": {
+          "name": "Name",
+          "device_id": "ESPHome Device",
+          "dashboard": "Dashboard ID"
+        }
+      }
+    },
+    "error": {
+    }
+  },
+  "issues": {
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update Configuration",
+        "data": {
+          "device_id": "ESPHome Device",
+          "dashboard": "Dashboard ID"
+        }
+      }
+    },
+    "error": {
+    }
+  }
+}

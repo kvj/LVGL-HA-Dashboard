@@ -1,0 +1,68 @@
+esphome:
+  name: lvgl-dashboard-sdl
+  friendly_name: LVGL Dashboard SDL
+
+host:
+
+logger:
+  level: DEBUG
+
+touchscreen:
+  platform: sdl
+  id: touchscreen_
+
+display:
+  - platform: sdl
+    auto_clear_enabled: false
+    update_interval: never
+    dimensions:
+      width: 820
+      height: 480
+
+time:
+  - platform: host
+    timezone: Europe/Berlin
+
+substitutions:
+
+packages:
+  common: !include {file: _dashboard.yaml, vars: {}}
+
+switch:
+  - platform: template
+    optimistic: true
+    id: sw_0
+    restore_mode: ALWAYS_OFF
+    name: Switch 0
+  - platform: template
+    optimistic: true
+    id: sw_1
+    restore_mode: ALWAYS_ON
+    name: Switch 1
+  - platform: template
+    optimistic: true
+    id: backlight_
+    restore_mode: ALWAYS_ON
+    name: Backlight
+
+output:
+  - platform: template
+    id: fake_output_
+    type: float
+    write_action: []
+
+rtttl:
+  - id: rtttl_
+    output: fake_output_
+
+lvgl_dashboard:
+  id: dashboard_
+  mdi_font_small: mdi_30
+  mdi_font_large: mdi_60
+  font: main_font_
+  width: 740
+  height: 360
+  switches:
+    - sw_0
+    - sw_1
+  backlight: backlight_

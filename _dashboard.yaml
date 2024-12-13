@@ -1,0 +1,116 @@
+# script:
+
+# globals:
+
+font:
+  - file: custom_components/lvgl_dashboard/mdi_font/mdi-webfont.ttf
+    id: mdi_60
+    size: 60
+    glyphs:
+      - "\U000F0709" # restart
+  - file: custom_components/lvgl_dashboard/mdi_font/mdi-webfont.ttf
+    id: mdi_30
+    size: 30
+    glyphs:
+      - "\U000F004D" # arrow-left
+      - "\U000F056E" # view-dashboard
+      - "\U000F0425" # power
+      - "\U000F00DF" # brightness
+      - "\U000F03A0" # 123
+  - file:
+      type: gfonts
+      family: Roboto
+    id: main_font_
+    size: 14
+    glyphsets:
+      - GF_Latin_Core
+      - GF_Greek_Core
+      - GF_Cyrillic_Core
+
+api:
+  id: api_server
+  services:
+    - service: set_pages
+      variables:
+        jsons: string[]
+        page: int
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "set_pages: %u, %ld", jsons.size(), page);
+            id(dashboard_).service_set_pages(jsons, page);
+    - service: set_value
+      variables:
+        page: int
+        item: int
+        json_value: string
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "set_value: %ld, %ld", page, item);
+            id(dashboard_).service_set_value(page, item, json_value);
+    - service: set_data
+      variables:
+        page: int
+        item: int
+        size: int
+        offset: int
+        data: int[]
+      then:
+        - lambda: |-
+            // ESP_LOGD("API", "set_data: %ld, %ld, %u, %ld - %ld", page, item, data.size(), offset, size);
+            id(dashboard_).service_set_data(page, item, (int32_t*)data.data(), data.size(), offset, size);
+    - service: show_page
+      variables:
+        page: int
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "show_page: %ld", page);
+            id(dashboard_).service_show_page(page);
+    - service: set_button
+      variables:
+        index: int
+        json_value: string
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "set_button: %ld", index);
+            id(dashboard_).service_set_button(index, json_value);
+    - service: show_more
+      variables:
+        json_value: string
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "show_more");
+            id(dashboard_).service_show_more(json_value);
+    - service: hide_more
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "hide_more");
+            id(dashboard_).service_hide_more();
+    - service: set_data_more
+      variables:
+        size: int
+        offset: int
+        data: int[]
+      then:
+        - lambda: |-
+            // ESP_LOGD("API", "set_data_more: %u, %ld - %ld", data.size(), offset, size);
+            id(dashboard_).service_set_data_more((int32_t*)data.data(), data.size(), offset, size);
+    - service: play_rtttl
+      variables:
+        song: string
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "play_rtttl: %s", song.c_str());
+            id(dashboard_).service_play_rtttl(song);
+sensor:
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+    icon: mdi:clock-outline
+
+external_components:
+  - source: components
+
+lvgl:
+  touchscreens:
+    - touchscreen_id: touchscreen_
+  pages: []

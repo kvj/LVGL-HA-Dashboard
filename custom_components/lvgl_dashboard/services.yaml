@@ -1,0 +1,46 @@
+reload:
+  name: Reloads dashboard YAML configurations and pushes them to devices 
+show_page:
+  name: Shows the page specified by index
+  target:
+    device:
+      integration: lvgl_dashboard
+  fields:
+    page:
+      name: Page index
+      required: yes
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 99
+          mode: box
+show_more_page:
+  name: Shows more info page dialog
+  target:
+    device:
+      integration: lvgl_dashboard
+  fields:
+    entity:
+      name: Entity to show dialog for
+      required: yes
+      example: sensor.time
+      selector:
+        entity:
+hide_more_page:
+  name: Hides more info page dialog
+  target:
+    device:
+      integration: lvgl_dashboard
+play_sound:
+  name: Play rtttl sound
+  target:
+    device:
+      integration: lvgl_dashboard
+  fields:
+    sound:
+      name: Rtttl sound pattern
+      required: true
+      example: "long:d=1,o=5,b=100:e6"
+      selector:
+        text:

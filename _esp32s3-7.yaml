@@ -1,0 +1,137 @@
+esphome:
+  platformio_options:
+    board_build.flash_mode: dio
+    build_flags: "-DBOARD_HAS_PSRAM -std=c++17" # Added
+    build_unflags: "-std=gnu++11" # Added
+    board_build.esp-idf.memory_type: qio_opi #Added
+    board_upload.maximum_ram_size: 524288 #Added
+    board_build.flash_size: 8MB #Added
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    platform_version: 6.8.1
+    version: 5.3.0
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: "y"
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_ESPTOOLPY_FLASHSIZE_8MB: "y"
+      CONFIG_LV_MEM_CUSTOM: "y"
+      CONFIG_LV_MEMCPY_MEMSET_STD: "y"
+      CONFIG_LV_ATTRIBUTE_FAST_MEM: "y"
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+ota:
+  platform: esphome
+
+ch422g:
+  - id: io_ex
+    i2c_id: bus_a
+
+touchscreen:
+  platform: gt911
+  address: 0x5D
+  update_interval: 16ms
+  interrupt_pin: 4
+  i2c_id: bus_a
+  id: touchscreen_
+
+i2c:
+  - sda: 8
+    scl: 9
+    frequency: 400kHz
+    scan: true
+    id: bus_a
+
+display:
+  - platform: rpi_dpi_rgb
+    update_interval: never
+    auto_clear_enabled: false
+    color_order: RGB
+    pclk_frequency: 16MHz
+    dimensions:
+      width: 800
+      height: 480
+    reset_pin:
+      ch422g: io_ex
+      number: 1
+    de_pin:
+      number: 5
+    hsync_pin:
+      number: 46
+      ignore_strapping_warning: true
+    vsync_pin:
+      number: 3
+      ignore_strapping_warning: true
+    pclk_pin: 7
+    pclk_inverted: true
+    hsync_back_porch: 8
+    hsync_front_porch: 8
+    hsync_pulse_width: 4
+    vsync_back_porch: 16
+    vsync_front_porch: 16
+    vsync_pulse_width: 4
+    data_pins:
+      red: [1, 2, 42, 41, 40]
+      blue: [14, 38, 18, 17, 10]
+      green: [39, 0, 45, 48, 47, 21]
+
+switch:
+  - platform: gpio
+    id: backlight_
+    pin: 
+      ch422g: io_ex
+      number: 2
+    restore_mode: ALWAYS_ON
+    name: Backlight
+    entity_category: config
+    icon: "mdi:brightness-6"
+  - platform: gpio
+    id: sw_0
+    pin:
+      number: 11
+      mode:
+        output: true
+      inverted: true
+    name: Switch 0
+    restore_mode: ALWAYS_OFF
+  - platform: gpio
+    id: sw_1
+    name: Switch 1
+    pin:
+      number: 13
+      mode:
+        output: true
+      inverted: true
+    restore_mode: ALWAYS_OFF
+
+rtttl:
+  id: buzzer
+  output: buzzer_out
+
+output:
+  - platform: ledc
+    id: buzzer_out
+    pin:
+      number: 6
+
+lvgl_dashboard:
+  id: dashboard_
+  mdi_font_small: mdi_30
+  mdi_font_large: mdi_60
+  font: main_font_
+  width: 740
+  height: 360
+  backlight: backlight_
+  switches:
+    - sw_0
+    - sw_1
