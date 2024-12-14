@@ -44,10 +44,12 @@ from datetime import timedelta, datetime
 
 _LOGGER = logging.getLogger(__name__)
 
-OP_SET_VALUE = "set_value"
-OP_SET_DATA = "set_data"
-
 SET_DATA_BATCH = 800
+PICTURE_DEF_SCALE_ITEM = 60
+PICTURE_DEF_SCALE_MORE = 400
+
+ICON_SMALL = 25
+ICON_LARGE = 55
 
 class Coordinator(DataUpdateCoordinator):
 
@@ -161,6 +163,8 @@ class Coordinator(DataUpdateCoordinator):
     
     def color_from_state(self, state, item: dict) -> str:
         result = ""
+        if col_ := self._g(item, "color", state=state):
+            return col_
         if state and state.state == "on":
             result = "on"
         return result
@@ -168,37 +172,53 @@ class Coordinator(DataUpdateCoordinator):
     def state_by_entity_id(self, entity_id: str | None):
         return self.hass.states.get(entity_id) if entity_id else None
 
-    async def async_prepare_data(self, layout: str, item: dict, page_no: int, item_no: int) -> list:
+    async def async_send_picture_data(self, service: str, entity_id: str, scale: int, cb):
+        state = self.state_by_entity_id(entity_id)
+        size, data = await self.async_picture_from_state(entity_id, state, scale)
+        if size and data:
+            offset = 0
+            while offset < len(data):
+                self.call_device_service(service, {
+                    "data": data[offset:(offset + SET_DATA_BATCH)], 
+                    "offset": offset, "size": len(data),
+                    **cb(),
+                })
+                offset += SET_DATA_BATCH
+
+    async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
         state = self.state_by_entity_id(entity_id)
         if layout == "button":
             icon = icon_from_state(self._g(item, "icon", state=state), state)
-            icon_size = int(self._g(item, "isize", 55, state=state))
-            return [(OP_SET_VALUE, {
+            icon_size = int(self._g(item, "size", ICON_LARGE, state=state))
+            return {
                 "name": self._g(item, "name", self.name_from_state(entity_id, state), state=state),
                 "icon": self._mdi_font.get_icon_value(icon, icon_size),
                 "ctype": self._g(item, "ctype", "button"),
                 "col": self._g(item, "color", self.color_from_state(state, item), state=state),
-            })]
+            }
         if layout == "sensor":
             icon = icon_from_state(self._g(item, "icon", state=state), state)
-            icon_size = int(self._g(item, "isize", 20, state=state))
-            return [(OP_SET_VALUE, {
+            icon_size = int(self._g(item, "size", ICON_SMALL, state=state))
+            return {
                 "name": self._g(item, "name", self.name_from_state(entity_id, state), state=state),
                 "icon": self._mdi_font.get_icon_value(icon, icon_size),
                 "value": str(self._g(item, "value", state.state if state else "", state=state)),
                 "unit": self._g(item, "unit", state.attributes.get("unit_of_measurement", "") if state else ""),
                 "ctype": self._g(item, "ctype", "text"),
                 "col": self._g(item, "color", self.color_from_state(state, item), state=state),
-            })]
+            }
         if layout == "picture":
-            size, data = await self.async_picture_from_state(entity_id, state, self._g(item, "scale", 100, state=state))
+            size, data = await self.async_picture_from_state(
+                entity_id, state, 
+                self._g(item, "scale", PICTURE_DEF_SCALE_ITEM, state=state)
+            )
             if size and data:
-                return [(OP_SET_VALUE, {
+                return {
                     "ctype": self._g(item, "ctype", "button"),
                     "col": self._g(item, "color", self.color_from_state(state, item), state=state),
                     "image": {"width": size[0], "height": size[1]}
-                }), (OP_SET_DATA, data), ]
+                }
         if layout == "layout":
             items = []
             ctype = self._g(item, "ctype", "text")
@@ -214,35 +234,26 @@ class Coordinator(DataUpdateCoordinator):
                 else:
                     item__["icon"] = self._mdi_font.get_icon_value(
                         icon_from_state(self._g(item_, "icon", state=state), state_), 
-                        self._g(item_, "size", 20, state=state)
+                        self._g(item_, "size", ICON_SMALL, state=state)
                     )
                 item__["col"] = self._g(item_, "color", self.color_from_state(state_, item_), state=state_)
                 items.append(item__)
-            return [(OP_SET_VALUE, {
+            return {
                 "ctype": ctype,
                 "items": items,
                 "cols": self._g(item, "lc", [1], state=state),
                 "rows": self._g(item, "lr", [1], state=state),
-            })]
-        return []
+            }
+        return None
 
     async def async_send_values(self, entity_id: str | None = None, page: int | None = None):
         for (page_no, _, item_no, item) in self._dashboard_items():
             if (entity_id is None or entity_id in self._pick_entity_ids(item)) and (page is None or page == page_no):
-                ops = await self.async_prepare_data(self._g(item, "layout", "button"), item, page_no, item_no)
-                for op, data in ops:
-                    if op == OP_SET_VALUE:
-                        _LOGGER.debug(f"async_send_values: set_value: {page_no}, {item_no}, {data}")
-                        self.call_device_service("set_value", {"page": page_no, "item": item_no, "json_value": json.dumps(data)})
-                    elif op == OP_SET_DATA:
-                        offset = 0
-                        while offset < len(data):
-                            self.call_device_service("set_data", {
-                                "page": page_no, "item": item_no, 
-                                "data": data[offset:(offset + SET_DATA_BATCH)], 
-                                "offset": offset, "size": len(data)
-                            })
-                            offset += SET_DATA_BATCH
+                if op := await self.async_prepare_data(self._g(item, "layout", "button"), item):
+                    _LOGGER.debug(f"async_send_values: set_value: {page_no}, {item_no}, {op}")
+                    self.call_device_service("set_value", {
+                        "page": page_no, "item": item_no, "json_value": json.dumps(op)
+                    })
 
     async def async_prepare_button(self, item: dict):
         result = {}
@@ -296,7 +307,6 @@ class Coordinator(DataUpdateCoordinator):
         features = []
         if not state:
             return
-        data = None
         [domain, name] = entity_id.split(".")
         if domain in TOGGLABLE_DOMAINS:
             features.append({"type": "toggle", "id": "toggle", "value": state.state == "on"})
@@ -317,7 +327,7 @@ class Coordinator(DataUpdateCoordinator):
                 "value": state.state,
             })
         if domain in IMAGE_DOMAINS:
-            size, data = await self.async_picture_from_state(entity_id, state, 400)
+            size, data = await self.async_picture_from_state(entity_id, state, PICTURE_DEF_SCALE_MORE)
             if size and data:
                 features.append({
                     "type": "image", 
@@ -331,14 +341,6 @@ class Coordinator(DataUpdateCoordinator):
                 "title": self.name_from_state(entity_id, state)
             })
         })
-        if data:
-            offset = 0
-            while offset < len(data):
-                self.call_device_service("set_data_more", {
-                    "data": data[offset:(offset + SET_DATA_BATCH)], 
-                    "offset": offset, "size": len(data)
-                })
-                offset += SET_DATA_BATCH
 
     def get_dashboard(self, name: str) -> dict:
         result = self.hass.data[DOMAIN].get(name)
@@ -445,30 +447,37 @@ class Coordinator(DataUpdateCoordinator):
     async def async_handle_event(self, type_: str, event: dict):
         page = int(event.get("page", -1))
         item = int(event.get("item", -1))
+        entity_id = event.get("id")
+        op = event.get("op")
         
         if type_ == "page":
             await self._async_update_state({"page": page})
         if type_ == "more":
             visible = event.get("visible") == "1"
+            changed = self.data.get("more_page", False) != visible
             await self._async_update_state({"more_page": visible})
-            if not visible:
+            if not visible and changed:
                 await self.async_send_values(page=self.data.get("page", 0))
         if type_ in ("button", "long_button"):
             btns = self._dashboard.get("buttons", [])
             if 0 <= item < len(btns):
                 btn = btns[item]
                 await self.async_exec_action(self._g(btn, "on_tap" if type_ == "button" else "on_long_tap"), btn)
-        if type_ == "change":
-            entity_id = event.get("id")
-            op = event.get("op")
-            value = int(event.get("value", 0))
-            await self.async_exec_change_action(entity_id, op, value)
         if item_def := self._get_item_def(page, item):
             if type_ == "click":
                 await self.async_exec_action(self._g(item_def, "on_tap"), item_def)
             if type_ == "long_press":
                 await self.async_exec_action(self._g(item_def, "on_long_tap"), item_def)
-        
+            if type_ == "data_request":
+                entity_id_ = self._g(item_def, "entity_id")
+                scale = self._g(item_def, "scale", PICTURE_DEF_SCALE_ITEM)
+                await self.async_send_picture_data("set_data", entity_id_, scale, lambda: {"item": item, "page": page})
+        if entity_id and op:
+            if type_ == "change":
+                value = int(event.get("value", 0))
+                await self.async_exec_change_action(entity_id, op, value)
+            if type_ == "data_request":
+                await self.async_send_picture_data("set_data_more", entity_id, PICTURE_DEF_SCALE_MORE, lambda: {})
 
     def _connect_to_services(self, entry_data):
         def _on_service_call(call):
@@ -479,7 +488,6 @@ class Coordinator(DataUpdateCoordinator):
         if not self._on_service_call_handler:
             self._on_service_call_handler = entry_data.client.subscribe_service_calls(_on_service_call)
             _LOGGER.debug(f"_connect_to_services: {entry_data.services}")
-            # self.call_device_service("set_backlight", {"state": True, "level": 50})
             self.hass.async_create_task(self.async_send_dashboard())
 
     def _disconnect_from_services(self):
@@ -496,9 +504,9 @@ class Coordinator(DataUpdateCoordinator):
             self.hass.async_create_task(self._async_update_state({"connected": self.is_device_connected()}))
             
 
-        _LOGGER.debug(f"_connect_to_esphome_device: {entry_data.available}")
         self._on_device_updated_handler = entry_data.async_subscribe_device_updated(_on_device_update)
         self._entry_data = entry_data
+        _LOGGER.debug(f"_connect_to_esphome_device: {entry_data.available}")
         if entry_data.available:
             _on_device_update()
 

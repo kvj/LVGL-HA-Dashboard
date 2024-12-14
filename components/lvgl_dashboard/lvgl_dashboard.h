@@ -99,6 +99,7 @@ typedef struct {
 class LvglItemEventListener {
     public:
         virtual void on_item_event(int page, int item, int event) = 0;
+        virtual void on_data_request(int page, int item) = 0;
 };
 
 class DashboardButtonListener {
@@ -161,6 +162,8 @@ class DashboardItem : public MdiFontCapable {
 
         void set_bg_color(lv_obj_t* obj, JsonObject data);
         void set_text_color(lv_obj_t* obj, JsonObject data);
+
+        void request_data();
 
     public:
         void set_definition(ItemDef* def) { this->def_ = def; }
@@ -293,7 +296,8 @@ static lv_style_t more_page_switch_knob_checked_;
 static lv_style_t more_page_image_;
 class MoreInfoPage {
     protected:
-        std::function<void(std::string, std::string, int)> listener_ = 0;
+        std::function<void(std::string, std::string, int)> change_listener_ = 0;
+        std::function<void(std::string, std::string)> data_request_listener_ = 0;
         std::vector<std::string> ids_ {};
         std::string entity_id_;
 
@@ -308,8 +312,12 @@ class MoreInfoPage {
         void setup(lv_obj_t* parent, JsonObject data);
         void destroy();
 
-        void set_listener(std::function<void(std::string, std::string, int)> &&listener) {
-            this->listener_ = listener;
+        void set_change_listener(std::function<void(std::string, std::string, int)> &&listener) {
+            this->change_listener_ = listener;
+        }
+
+        void set_data_request_listener(std::function<void(std::string, std::string)> &&listener) {
+            this->data_request_listener_ = listener;
         }
 
         void on_event(lv_event_t* event);
@@ -400,6 +408,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         void add_switch(esphome::switch_::Switch* switch_) { this->switches_.push_back(switch_); }
 
         void on_item_event(int page, int item, int event) override;
+        void on_data_request(int page, int item) override;
         bool on_button(int index, lv_event_code_t event) override;
 
         float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }

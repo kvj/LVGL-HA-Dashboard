@@ -291,6 +291,12 @@ void DashboardItem::on_tap_event(lv_event_code_t code, lv_event_t* event) {
     }
 }
 
+void DashboardItem::request_data() {
+    if (this->listener_.listener != 0) {
+        this->listener_.listener->on_data_request(this->listener_.page, this->listener_.item);
+    }
+}
+
 void DashboardItem::set_listener(int page, int item, LvglItemEventListener* listener) {
     this->listener_.item = item;
     this->listener_.page = page;
@@ -337,6 +343,10 @@ void DashboardItem::set_bg_color(lv_obj_t* obj, JsonObject data) {
         lv_obj_set_style_bg_color(obj, LVD_BTN_ON_COLOR, 0);
         return;
     }
+    if (color.size() == 7) {
+        lv_obj_set_style_bg_color(obj, lv_color_hex((uint32_t)std::stol(color.substr(1), nullptr, 16)), 0);
+        return;
+    }
     lv_obj_set_style_bg_color(obj, LVD_BTN_BG_COLOR, 0);
 }
 
@@ -352,11 +362,15 @@ void DashboardItem::set_text_color(lv_obj_t* obj, JsonObject data) {
             lv_obj_set_style_text_color(obj, LVD_BTN_ON_COLOR, 0);
             return;
         }
+        if (color.size() == 7) {
+            lv_obj_set_style_text_color(obj, lv_color_hex((uint32_t)std::stol(color.substr(1), nullptr, 16)), 0);
+            return;
+        }
         lv_obj_set_style_text_color(obj, LVD_TEXT_COLOR, 0);
         return;
     }
-    if (color == "on") {
-        lv_obj_set_style_text_color(obj, LVD_BG_COLOR, 0); // Orange bg - dark text
+    if (color.size() > 0) {
+        lv_obj_set_style_text_color(obj, LVD_BG_COLOR, 0); // BG set - dark text
         return;
     }
 }
@@ -465,6 +479,7 @@ void ImageItem::set_value(JsonObject data) {
         this->image_.header.w = image["width"];
         this->image_.header.h = image["height"];
         this->image_.header.cf = LV_IMG_CF_TRUE_COLOR;
+        this->request_data();
     } else {
         lv_obj_add_flag(lv_obj_get_child(this->root_, 0), LV_OBJ_FLAG_HIDDEN);
     }
@@ -838,7 +853,7 @@ void LvglDashboard::setup() {
     this->more_page_ = this->create_more_page(lv_obj_create(NULL));
     this->buttons_ = this->create_buttons(lv_layer_top());
     this->more_info_page_ = new MoreInfoPage();
-    this->more_info_page_->set_listener([this](std::string entity_id, std::string id, int value) {
+    this->more_info_page_->set_change_listener([this](std::string entity_id, std::string id, int value) {
         this->send_event_("change", [&entity_id, &id, &value] (esphome::api::HomeassistantServiceResponse* resp) {
             esphome::api::HomeassistantServiceMap entry_;
             entry_.key = "id";
@@ -854,6 +869,19 @@ void LvglDashboard::setup() {
             entry___.key = "value";
             entry___.value = std::to_string(value);
             resp->data.push_back(entry___);
+        });
+    });
+    this->more_info_page_->set_data_request_listener([this](std::string entity_id, std::string id) {
+        this->send_event_("data_request", [&entity_id, &id] (esphome::api::HomeassistantServiceResponse* resp) {
+            esphome::api::HomeassistantServiceMap entry_;
+            entry_.key = "id";
+            entry_.value = entity_id;
+            resp->data.push_back(entry_);
+
+            esphome::api::HomeassistantServiceMap entry__;
+            entry__.key = "op";
+            entry__.value = id;
+            resp->data.push_back(entry__);
         });
     });
 
@@ -939,6 +967,7 @@ void LvglDashboard::show_more_page(JsonObject data) {
     this->show_buttons(false);
     this->send_more_page_event(true);
 }
+
 void LvglDashboard::hide_more_page() {
     this->more_info_page_->destroy();
     this->show_page(this->page_no_);
@@ -1118,6 +1147,10 @@ void LvglDashboard::on_item_event(int page, int item, int event) {
     this->show_buttons(false);
     if (auto search = event_type_map_.find(event); search != event_type_map_.end()) 
         this->send_event(page, item, search->second);
+}
+
+void LvglDashboard::on_data_request(int page, int item) {
+    this->send_event(page, item, "data_request");
 }
 
 void LvglDashboard::on_tap_event(lv_event_code_t code, lv_event_t* event) {
@@ -1305,6 +1338,8 @@ void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
             this->image_.header.w = item["width"];
             this->image_.header.h = item["height"];
             this->image_.header.cf = LV_IMG_CF_TRUE_COLOR;
+            if (this->data_request_listener_ != 0)
+                this->data_request_listener_(this->entity_id_, item["id"]);
         }
     }
 }
@@ -1330,8 +1365,8 @@ void MoreInfoPage::on_event(lv_event_t* event) {
         if ((id == "bri") || (id == "value")) {
             value = lv_slider_get_value(it);
         }
-        if (this->listener_ != 0) {
-            this->listener_(this->entity_id_, id, value);
+        if (this->change_listener_ != 0) {
+            this->change_listener_(this->entity_id_, id, value);
         }
     }
 
