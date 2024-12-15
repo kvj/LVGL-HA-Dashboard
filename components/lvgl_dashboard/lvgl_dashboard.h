@@ -34,7 +34,7 @@ namespace esphome {
 namespace lvgl_dashboard {
 
 #ifndef LVD_BG_COLOR
-    #define LVD_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 4)
+    #define LVD_BG_COLOR lv_color_black()
 #endif
 #ifndef LVD_TEXT_COLOR
     #define LVD_TEXT_COLOR lv_color_white()
@@ -52,13 +52,13 @@ namespace lvgl_dashboard {
     #define LVD_PRESS_TRANSLATE_Y 3
 #endif
 #ifndef LVD_PANEL_BG_COLOR
-    #define LVD_PANEL_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 3)
+    #define LVD_PANEL_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 4)
 #endif
 #ifndef LVD_BTN_BG_COLOR
-    #define LVD_BTN_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 2)
+    #define LVD_BTN_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 3)
 #endif
 #ifndef LVD_BTN_PRESSED_COLOR
-    #define LVD_BTN_PRESSED_COLOR lv_palette_darken(LV_PALETTE_GREY, 1)
+    #define LVD_BTN_PRESSED_COLOR lv_palette_darken(LV_PALETTE_GREY, 2)
 #endif
 #ifndef LVD_BTN_ON_COLOR
     #define LVD_BTN_ON_COLOR lv_palette_main(LV_PALETTE_YELLOW)
@@ -366,6 +366,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         uint16_t dashboard_timeout_ = 0;
 
         esphome::lvgl::FontEngine* normal_font_ = 0;
+        esphome::lvgl::FontEngine* large_font_ = 0;
 
         void render_page(int index);
         void hide_page(int index);
@@ -391,7 +392,12 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
     public:
 
         void set_mdi_fonts(esphome::font::Font* small_font, esphome::font::Font* large_font);
-        void set_font(esphome::font::Font* font) { this->normal_font_ = new esphome::lvgl::FontEngine(font); }
+        void set_fonts(esphome::font::Font* normal_font, esphome::font::Font* large_font) {
+            this->normal_font_ = new esphome::lvgl::FontEngine(normal_font);
+            if (large_font != 0) {
+                this->large_font_ = new esphome::lvgl::FontEngine(large_font);
+            }
+        }
         void init(lv_obj_t* obj);
         void set_lvgl(esphome::lvgl::LvglComponent *root) { this->root_ = root; }
         void set_api_server(esphome::api::APIServer* api_server) { this->api_server_ = api_server; }

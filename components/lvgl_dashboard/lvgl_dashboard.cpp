@@ -441,6 +441,7 @@ void LayoutItem::set_value(JsonObject data) {
         if (item.containsKey("icon")) {
             this->set_icon(obj, item["icon"]);
         } else {
+            lv_obj_set_style_text_font(obj, lv_theme_get_font_normal(this->root_), 0);
             lv_label_set_text(obj, item["label"]);
         }
         this->set_text_color(obj, item);
@@ -838,7 +839,7 @@ void LvglDashboard::setup() {
         true, 
         normal_font_
     );
-    this->theme_->font_large = &lv_font_montserrat_28;
+    this->theme_->font_large = this->large_font_ != 0? this->large_font_->get_lv_font(): &lv_font_montserrat_28;
     this->theme_->font_small = &lv_font_montserrat_12;
     lv_disp_set_theme(this->root_->get_disp(), this->theme_);
 

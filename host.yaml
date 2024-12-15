@@ -59,7 +59,8 @@ lvgl_dashboard:
   id: dashboard_
   mdi_font_small: mdi_30
   mdi_font_large: mdi_60
-  font: main_font_
+  normal_font: main_font_
+  large_font: large_font_
   width: 740
   height: 360
   switches:

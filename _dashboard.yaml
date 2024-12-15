@@ -19,13 +19,20 @@ font:
       - "\U000F03A0" # 123
   - file:
       type: gfonts
-      family: Roboto
+      family: Ubuntu Condensed
     id: main_font_
-    size: 14
+    size: 16
     glyphsets:
       - GF_Latin_Core
       - GF_Greek_Core
       - GF_Cyrillic_Core
+  - file:
+      type: gfonts
+      family: Ubuntu Condensed
+    id: large_font_
+    size: 30
+    glyphsets:
+      - GF_Latin_Core
 
 api:
   id: api_server

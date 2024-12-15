@@ -38,6 +38,7 @@ from .mdi_font.compress import pack_data
 from .mdi_font import GlyphProvider
 from .picture import bytes_to_565_ints, async_get_image_by_entity_id
 
+import collections.abc
 import logging
 import json, copy
 from datetime import timedelta, datetime
@@ -96,6 +97,9 @@ class Coordinator(DataUpdateCoordinator):
             ids.add(self._g(item, "entity_id"))
         if "entity_ids" in item:
             ids.update([ self._gv(id_) for id_ in self._g(item, "entity_ids") ])
+        for item_ in self.all_items(item, "items"):
+            if "entity_id" in item_:
+                ids.add(self._g(item_, "entity_id"))
         return ids
     
     async def _async_on_state_change(self, entity_id: str, from_state, to_state):
@@ -105,15 +109,14 @@ class Coordinator(DataUpdateCoordinator):
     def _dashboard_items(self):
         if self._dashboard:
             page_no = 0
-            for page in self._dashboard.get("pages", []):
+            for page in self.all_items(self._dashboard, "pages"):
                 item_no = 0
-                for item in page.get("items", []):
+                for item in self.all_items(page, "items"):
                     yield (page_no, page, item_no, item)
                     item_no += 1
                 page_no += 1
     
     def _to_template(self, value: any):
-        import collections.abc
         if isinstance(value, list):
             return [self._to_template(item) for item in value]
         if isinstance(value, collections.abc.Mapping):
@@ -164,7 +167,12 @@ class Coordinator(DataUpdateCoordinator):
     def color_from_state(self, state, item: dict) -> str:
         result = ""
         if col_ := self._g(item, "color", state=state):
-            return col_
+            if isinstance(col_, collections.abc.Mapping):
+                if state and (state.state in col_):
+                    return self._g(col_, state.state, state=state)
+                return ""
+            else:
+                return col_
         if state and state.state == "on":
             result = "on"
         return result
@@ -195,7 +203,7 @@ class Coordinator(DataUpdateCoordinator):
                 "name": self._g(item, "name", self.name_from_state(entity_id, state), state=state),
                 "icon": self._mdi_font.get_icon_value(icon, icon_size),
                 "ctype": self._g(item, "ctype", "button"),
-                "col": self._g(item, "color", self.color_from_state(state, item), state=state),
+                "col": self.color_from_state(state, item),
             }
         if layout == "sensor":
             icon = icon_from_state(self._g(item, "icon", state=state), state)
@@ -206,7 +214,7 @@ class Coordinator(DataUpdateCoordinator):
                 "value": str(self._g(item, "value", state.state if state else "", state=state)),
                 "unit": self._g(item, "unit", state.attributes.get("unit_of_measurement", "") if state else ""),
                 "ctype": self._g(item, "ctype", "text"),
-                "col": self._g(item, "color", self.color_from_state(state, item), state=state),
+                "col": self.color_from_state(state, item),
             }
         if layout == "picture":
             size, data = await self.async_picture_from_state(
@@ -216,27 +224,27 @@ class Coordinator(DataUpdateCoordinator):
             if size and data:
                 return {
                     "ctype": self._g(item, "ctype", "button"),
-                    "col": self._g(item, "color", self.color_from_state(state, item), state=state),
+                    "col": self.color_from_state(state, item),
                     "image": {"width": size[0], "height": size[1]}
                 }
         if layout == "layout":
             items = []
             ctype = self._g(item, "ctype", "text")
-            for item_ in self._g(item, "items", [], state=state):
+            for item_ in self.all_items(item, "items"):
                 entity_id_ = self._g(item_, "entity_id", state=state)
                 state_ = self.state_by_entity_id(entity_id_)
                 item__ = {"ctype": ctype}
                 for key, name in (("col", "x"), ("row", "y"), ("cols", "w"), ("rows", "h")):
                     if key in item_:
-                        item__[name] = self._g(item_, key, state=state)
+                        item__[name] = self._g(item_, key, state=state_)
                 if "label" in item_:
-                    item__["label"] = self._g(item_, "label", state=state)
+                    item__["label"] = self._g(item_, "label", state=state_)
                 else:
                     item__["icon"] = self._mdi_font.get_icon_value(
-                        icon_from_state(self._g(item_, "icon", state=state), state_), 
-                        self._g(item_, "size", ICON_SMALL, state=state)
+                        icon_from_state(self._g(item_, "icon", state=state_), state_), 
+                        self._g(item_, "size", ICON_SMALL, state=state_)
                     )
-                item__["col"] = self._g(item_, "color", self.color_from_state(state_, item_), state=state_)
+                item__["col"] = self.color_from_state(state_, item_)
                 items.append(item__)
             return {
                 "ctype": ctype,
@@ -263,6 +271,13 @@ class Coordinator(DataUpdateCoordinator):
                     "icon": self._mdi_font.get_icon_value(icon_from_state(self._g(item[key], "icon"), None), 30),
                 }
         return result
+    
+    def all_items(self, obj: dict, name: str, depth=3):
+        name_ = name
+        for _ in range(depth):
+            for item in obj.get(name_, []):
+                yield item
+            name_ += "_"
 
     async def async_send_dashboard(self):
         self._on_entity_state_handler = self._disable_listener(self._on_entity_state_handler)
@@ -273,13 +288,13 @@ class Coordinator(DataUpdateCoordinator):
         self._dashboard = self._to_template(dashboard)
         data = []
         all_entity_ids = set()
-        for page in self._dashboard.get("pages", []):
+        for page in self.all_items(self._dashboard, "pages"):
             page_data = {
                 "rows": self._g(page, "rows", 4), 
                 "cols": self._g(page, "cols", 4), 
                 "items": []
             }
-            for item in page.get("items", []):
+            for item in self.all_items(page, "items"):
                 item_data = {"layout": self._g(item, "layout", "button")}
                 for attr in ("col", "row", "cols", "rows"):
                     if attr in item:
@@ -370,9 +385,9 @@ class Coordinator(DataUpdateCoordinator):
         return True if self._entry_data and self._entry_data.available else False
     
     def _get_item_def(self, page: int, item: int) -> dict | None:
-        pages = self._dashboard.get("pages", [])
+        pages = list(self.all_items(self._dashboard, "pages"))
         if 0 <= page < len(pages):
-            items = pages[page].get("items", [])
+            items = list(self.all_items(pages[page], "items"))
             if 0 <= item < len(items):
                 return items[item]
         return None
