@@ -5,6 +5,8 @@ namespace lvgl_dashboard {
 
 #define TAG "LVGLD"
 
+MdiFontCapable* icons_ = new MdiFontCapable();
+
 template <typename T>
 void lvgl_event_listener_(lv_event_t* event) {
     // ESP_LOGD(TAG, "lvgl_event_listener_: %d, %p", event->code, lv_event_get_user_data(event));
@@ -23,6 +25,71 @@ template <typename T>
 void subscribe_to_tap_events_(lv_obj_t* obj, T* receiver) {
     lv_obj_add_event_cb(obj, lvgl_tap_event_listener_<T>, LV_EVENT_LONG_PRESSED, receiver); // 5
     lv_obj_add_event_cb(obj, lvgl_tap_event_listener_<T>, LV_EVENT_SHORT_CLICKED, receiver); // 4
+}
+
+uint8_t* mem_alloc_(size_t size) {
+    #ifdef USE_HOST
+    return (uint8_t*)lv_mem_alloc(size);
+    #else
+    return (uint8_t*)heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    #endif
+}
+
+uint8_t* mem_realloc_(void* ptr, size_t size) {
+    #ifdef USE_HOST
+    return (uint8_t*)lv_mem_realloc(ptr, size);
+    #else
+    return (uint8_t*)heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    #endif
+}
+
+void mem_free_(void* ptr) {
+    #ifdef USE_HOST
+    lv_mem_free(ptr);
+    #else
+    heap_caps_free(ptr);
+    #endif
+}
+
+struct SpiRamAllocator {
+    void* allocate(size_t size) {
+        return mem_alloc_(size);
+    }
+
+    void deallocate(void* pointer) {
+        mem_free_(pointer);
+    }
+
+    void* reallocate(void* ptr, size_t new_size) {
+        return mem_realloc_(ptr, new_size);
+    }
+
+};
+
+using SpiRamJsonDocument = BasicJsonDocument<SpiRamAllocator>;
+
+bool json_parse_(std::string json_doc, std::function<void(JsonObject)> &&fn) {
+    size_t doc_size = 2.5 * json_doc.size();
+    DeserializationError err;
+    do {
+        auto doc_ = SpiRamJsonDocument(doc_size);
+        if (doc_.capacity() == 0) {
+            ESP_LOGW(TAG, "json_parse_:: Failed to allocate memory for Json");
+            return false;
+        }
+        err = deserializeJson(doc_, json_doc);
+        doc_.shrinkToFit();
+        JsonObject root = doc_.as<JsonObject>();
+        if (err == DeserializationError::Ok) {
+            ESP_LOGV(TAG, "json_parse_: Deserialized: %u / %u", json_doc.size(), doc_size);
+            fn(root);
+            return true;
+        } else {
+            ESP_LOGD(TAG, "json_parse_:: Failed to deserialize Json: %u [%s]", json_doc.size(), err.c_str());
+        }
+        doc_size *= 2;
+    } while (err == DeserializationError::NoMemory);
+    return false;
 }
 
 static const uint8_t *_mdi_get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter) {
@@ -80,6 +147,7 @@ static void decompress_rle(uint8_t* buffer, uint32_t len, uint8_t* to_buffer) {
 }
 
 #define ICON_HEADER 5
+#define ICON_FONT_CODE_START 0x20
 
 static uint32_t get_b64_size(uint8_t prefix, std::string b64_data) {
     auto b64_decoded = base64_decode(b64_data);
@@ -115,23 +183,24 @@ uint32_t MdiFont::add_glyph(std::string icon, std::string b64_data) {
         ESP_LOGD(TAG, "add_glyph: icon: %s, rle size: %lu", icon.c_str(), rle_size);
         size = ICON_HEADER + rle_size;
 
-        buf = (uint8_t*)lv_mem_alloc(size);
+        buf = mem_alloc_(size);
         memcpy(buf, b64_decoded.data(), ICON_HEADER);
         decompress_rle(b64_decoded.data() + ICON_HEADER, b64_decoded.size() - ICON_HEADER, &buf[ICON_HEADER]);
     } else {
         ESP_LOGD(TAG, "add_glyph: icon: %s, raw size: %u", icon.c_str(), size);
-        buf = (uint8_t*)lv_mem_alloc(size);
+        buf = mem_alloc_(size);
         memcpy(buf, b64_decoded.data(), size);
     }
-    uint32_t code = this->codes_.size() + 1;
+    uint32_t code = ICON_FONT_CODE_START + this->codes_.size() + 1;
     this->codes_[icon] = code;
     this->glyphs_[code] = buf;
+    ESP_LOGD(TAG, "add_glyph: %u - %u - %u - %u", buf[0], buf[1], buf[2], buf[3]);
     return code;
 }
 
 void MdiFont::destroy() {
     for (auto entry : this->glyphs_) {
-        lv_mem_free(entry.second);
+        mem_free_(entry.second);
     }
     this->glyphs_.clear();
     this->codes_.clear();
@@ -149,6 +218,32 @@ MdiFont::MdiFont(int size) {
     this->lv_font_.underline_position = -1;
     this->lv_font_.underline_thickness = 1;
 }
+
+uint8_t* WithDataBuffer::create_data_(uint32_t size) {
+    if (this->data_ != 0) {
+        mem_free_(this->data_);
+    }
+    this->data_ = mem_alloc_(size);
+    this->data_size_ = size;
+    return this->data_;
+}
+bool WithDataBuffer::set_data_(int32_t* data, int size, int offset, int total_size) {
+    if (offset == 0) {
+        this->create_data_(total_size * 4);
+    }
+    memcpy(&this->data_[offset * 4], data, size * 4);
+    if ((offset + size) == total_size) {
+        return true;
+    }
+    return false;
+}
+void WithDataBuffer::destroy_() {
+    if (this->data_ != 0) {
+        mem_free_(this->data_);
+        this->data_ = 0;
+    }
+}
+
 
 void DashboardButton::on_event(lv_event_t* event) {
     auto code = lv_event_get_code(event);
@@ -250,7 +345,7 @@ void DashboardButton::set_side_icon(lv_obj_t* obj, JsonObject data) {
     if (data.isNull()) {
         lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
     } else {
-        this->set_icon(obj, data["icon"]);
+        icons_->set_icon(obj, data["icon"]);
         lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_style_text_color(obj, LVD_TEXT_COLOR, 0);
     }
@@ -320,7 +415,7 @@ void MdiFontCapable::set_icon(lv_obj_t* obj, JsonObject icon_data) {
     lv_label_set_text(obj, (char *)&txt);
 }
 
-void MdiFontCapable::destroy() {
+void MdiFontCapable::clear() {
     for (auto it : this->fonts_) {
         it.second->destroy();
         free(it.second);
@@ -377,23 +472,9 @@ void DashboardItem::set_text_color(lv_obj_t* obj, JsonObject data) {
 
 
 void ImageItem::set_data(int32_t* data, int size, int offset, int total_size) {
-    // ESP_LOGD(TAG, "ImageItem::set_data: %d, %d", size + offset, total_size);
-    if (offset == 0) {
-        this->create_data(total_size * 4);
-    }
-    memcpy(&this->data_[offset * 4], data, size * 4);
-    if ((offset + size) == total_size) {
+    if (this->set_data_(data, size, offset, total_size)) {
         this->show();
     }
-}
-
-uint8_t* ImageItem::create_data(uint32_t size) {
-    if (this->data_ != 0) {
-        lv_mem_free(this->data_);
-    }
-    this->data_ = (uint8_t*)lv_mem_alloc(size);
-    this->data_size_ = size;
-    return this->data_;
 }
 
 void ImageItem::show() {
@@ -427,6 +508,10 @@ void LayoutItem::set_value(JsonObject data) {
     int col = 0;
     int row = 0;
     for (int i = 0; i< items.size(); i++) {
+        if (col >= cols_.size()) {
+            row++;
+            col = 0;
+        }
         JsonObject item = items[i];
 
         if (item.containsKey("x")) col = item["x"];
@@ -436,20 +521,23 @@ void LayoutItem::set_value(JsonObject data) {
         if (item.containsKey("w")) cols = item["w"];
         if (item.containsKey("h")) rows = item["h"];
 
+        if (item.containsKey("_h")) {
+            bool hidden = item["_h"];
+            if (hidden) {
+                col += cols;
+                continue;
+            }
+        }
         lv_obj_t* obj = lv_label_create(this->root_);
         lv_obj_set_grid_cell(obj, LV_GRID_ALIGN_CENTER, col, cols, LV_GRID_ALIGN_CENTER, row, rows);
         if (item.containsKey("icon")) {
-            this->set_icon(obj, item["icon"]);
+            icons_->set_icon(obj, item["icon"]);
         } else {
             lv_obj_set_style_text_font(obj, lv_theme_get_font_normal(this->root_), 0);
             lv_label_set_text(obj, item["label"]);
         }
         this->set_text_color(obj, item);
-        col++;
-        if (col >= cols_.size()) {
-            row++;
-            col = 0;
-        }
+        col += cols;
     }
     this->set_bg_color(this->root_, data);
 }
@@ -460,12 +548,12 @@ void ButtonItem::set_value(JsonObject data) {
     this->set_bg_color(this->root_, data);
     this->set_text_color(icon_, data);
     this->set_text_color(label_, data);
-    this->set_icon(icon_, data["icon"]);
+    icons_->set_icon(icon_, data["icon"]);
     lv_label_set_text(label_, data["name"]);
 }
 
 void SensorItem::set_value(JsonObject data) {
-    this->set_icon(lv_obj_get_child(this->root_, 0), data["icon"]);
+    icons_->set_icon(lv_obj_get_child(this->root_, 0), data["icon"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 1), data["name"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 2), data["value"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 3), data["unit"]);
@@ -584,10 +672,7 @@ void ImageItem::setup(lv_obj_t* root) {
 
 void ImageItem::destroy() {
     DashboardItem::destroy();
-    if (this->data_ != 0) {
-        lv_mem_free(this->data_);
-        this->data_ = 0;
-    }
+    WithDataBuffer::destroy_();
 }
 
 void DashboardItem::setup(lv_obj_t* root) {
@@ -600,7 +685,6 @@ void DashboardItem::setup(lv_obj_t* root) {
 }
 
 void DashboardItem::destroy() {
-    MdiFontCapable::destroy();
     if (this->root_ != 0) {
         lv_obj_del(this->root_);
         this->root_ = 0;
@@ -625,11 +709,6 @@ void DashboardPage::init(lv_obj_t* obj) {
 }
 
 void DashboardPage::setup(lv_obj_t* parent, int page, LvglItemEventListener *listener) {
-    for (auto* item : this->items_) {
-        item->destroy();
-        free(item);
-    }
-    this->items_.clear();
     lv_obj_clean(parent);
     this->root_ = lv_obj_create(parent);
     lv_obj_remove_style_all(this->root_);
@@ -659,6 +738,12 @@ void DashboardPage::setup(lv_obj_t* parent, int page, LvglItemEventListener *lis
 }
 
 void DashboardPage::destroy() {
+    for (auto* item : this->items_) {
+        item->destroy();
+        free(item);
+    }
+    this->items_.clear();
+
     if (this->root_ != 0) {
         lv_obj_del(this->root_);
         this->root_ = 0;
@@ -978,6 +1063,7 @@ void LvglDashboard::hide_more_page() {
 
 
 void LvglDashboard::set_pages(PageDef* pages, int size) {
+    this->page_no_ = 0; // To avoid double destroy
     for (auto* item: this->page_objs_) {
         item->destroy();
         free(item);
@@ -991,6 +1077,10 @@ void LvglDashboard::set_pages(PageDef* pages, int size) {
 }
 
 void LvglDashboard::show_page(int index) {
+    if (this->page_no_ > 0) {
+        // Sub-page was shown
+        this->page_objs_[this->page_no_]->destroy();
+    }
     if (index == 0) {
         // Just show
         lv_disp_load_scr(this->page_);
@@ -1026,9 +1116,10 @@ void LvglDashboard::set_mdi_fonts(esphome::font::Font* small_font, esphome::font
 }
 
 void LvglDashboard::service_set_pages(std::vector<std::string> pages, int page) {
+    icons_->clear();
     int pages_size = 0;
     for (auto json_ : pages) {
-        if (esphome::json::parse_json(json_, [&pages_size, this](JsonObject obj) {
+        if (json_parse_(json_, [&pages_size, this](JsonObject obj) {
             // Make PageDef
             int pcols = obj["cols"];
             int prows = obj["rows"];
@@ -1052,7 +1143,6 @@ void LvglDashboard::service_set_pages(std::vector<std::string> pages, int page) 
             }
             page.items_size = items_size;
             this->pages_[pages_size] = page;
-            return true;
         })) {
             pages_size++;
         }
@@ -1064,11 +1154,18 @@ void LvglDashboard::service_set_pages(std::vector<std::string> pages, int page) 
 }
 
 void LvglDashboard::service_set_value(int page, int item, std::string value) {
-    esphome::json::parse_json(value, [this, &page, &item](JsonObject obj) {
+    json_parse_(value, [this, &page, &item](JsonObject obj) {
         this->for_each_item([&obj](int, DashboardPage*, int, DashboardItem* item) {
+            if (obj.containsKey("_h")) {
+                bool hidden = obj["_h"];
+                if (hidden) {
+                    lv_obj_add_flag(item->get_lv_obj(), LV_OBJ_FLAG_HIDDEN);
+                    return;
+                }
+            }
+            lv_obj_clear_flag(item->get_lv_obj(), LV_OBJ_FLAG_HIDDEN);
             item->set_value(obj);
         }, page, item);
-        return true;
     });
 }
 
@@ -1186,11 +1283,10 @@ void LvglDashboard::service_show_page(int page) {
 }
 
 void LvglDashboard::service_set_button(int index, std::string json_value) {
-    esphome::json::parse_json(json_value, [this, &index](JsonObject obj) {
+    json_parse_(json_value, [this, &index](JsonObject obj) {
         if ((index >= 0) && (index < this->button_objs_.size())) {
             this->button_objs_[index]->set_value(obj);
         }
-        return true;
     });
 }
 
@@ -1214,9 +1310,8 @@ void LvglDashboard::service_hide_more() {
 }
 
 void LvglDashboard::service_show_more(std::string json_value) {
-    esphome::json::parse_json(json_value, [this](JsonObject obj) {
+    json_parse_(json_value, [this](JsonObject obj) {
         this->show_more_page(obj);
-        return true;
     });
 }
 
@@ -1346,10 +1441,7 @@ void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
 }
 
 void MoreInfoPage::destroy() {
-    if (this->data_ != 0) {
-        lv_mem_free(this->data_);
-        this->data_ = 0;
-    }
+    WithDataBuffer::destroy_();
     this->image_cmp_ = 0;
 }
 
@@ -1377,18 +1469,11 @@ void MoreInfoPage::on_tap_event(lv_event_code_t code, lv_event_t* event) {
 }
 
 void MoreInfoPage::set_data(int32_t* data, int size, int offset, int total_size) {
-    if (offset == 0) {
-        this->data_size_ = total_size * 4;
-        this->data_ = (uint8_t*)lv_mem_alloc(this->data_size_);
-    }
-    memcpy(&this->data_[offset * 4], data, size * 4);
-    if (((offset + size) == total_size) && (this->image_cmp_ != 0)) {
+    if (this->set_data_(data, size, offset, total_size) && (this->image_cmp_ != 0)) {
         this->image_.data_size = this->data_size_;
         this->image_.data = (unsigned char*)this->data_;
         lv_img_set_src(this->image_cmp_, &this->image_);
-        // lv_obj_clear_flag(this->image_cmp_, LV_OBJ_FLAG_HIDDEN);
     }
-
 }
 
 

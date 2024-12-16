@@ -33,7 +33,6 @@ from .constants import (
 )
 
 from .mdi_font.icon import icon_from_state
-from .mdi_font.compress import pack_data
 
 from .mdi_font import GlyphProvider
 from .picture import bytes_to_565_ints, async_get_image_by_entity_id
@@ -41,11 +40,11 @@ from .picture import bytes_to_565_ints, async_get_image_by_entity_id
 import collections.abc
 import logging
 import json, copy
-from datetime import timedelta, datetime
+from datetime import datetime
 
 _LOGGER = logging.getLogger(__name__)
 
-SET_DATA_BATCH = 800
+SET_DATA_BATCH = 500
 PICTURE_DEF_SCALE_ITEM = 60
 PICTURE_DEF_SCALE_MORE = 400
 
@@ -196,6 +195,9 @@ class Coordinator(DataUpdateCoordinator):
     async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
         state = self.state_by_entity_id(entity_id)
+        hidden = self._g(item, "hidden", state=state)
+        if hidden:
+            return {"_h": True}
         if layout == "button":
             icon = icon_from_state(self._g(item, "icon", state=state), state)
             icon_size = int(self._g(item, "size", ICON_LARGE, state=state))
@@ -245,6 +247,7 @@ class Coordinator(DataUpdateCoordinator):
                         self._g(item_, "size", ICON_SMALL, state=state_)
                     )
                 item__["col"] = self.color_from_state(state_, item_)
+                item__["_h"] = self._g(item_, "hidden", state=state_)
                 items.append(item__)
             return {
                 "ctype": ctype,

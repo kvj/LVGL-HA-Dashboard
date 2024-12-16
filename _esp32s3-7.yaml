@@ -21,6 +21,7 @@ esp32:
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
       CONFIG_SPIRAM_RODATA: "y"
+      # CONFIG_SPIRAM_USE_MALLOC: "y"
       CONFIG_ESPTOOLPY_FLASHSIZE_8MB: "y"
       CONFIG_LV_MEM_CUSTOM: "y"
       CONFIG_LV_MEMCPY_MEMSET_STD: "y"
@@ -37,6 +38,10 @@ text_sensor:
   - platform: wifi_info
     ip_address:
       name: IP Address
+
+button:
+  - platform: restart
+    name: "Reboot"
 
 ch422g:
   - id: io_ex

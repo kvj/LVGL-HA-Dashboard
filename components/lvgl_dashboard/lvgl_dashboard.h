@@ -142,14 +142,26 @@ class MdiFontCapable {
         std::map<int, MdiFont*> fonts_ {};
 
         MdiFont* get_font(int size);
-        void set_icon(lv_obj_t* obj, JsonObject icon_data);
 
-        void destroy();
+    public:
+        void set_icon(lv_obj_t* obj, JsonObject icon_data);
+        void clear();
+};
+
+class WithDataBuffer {
+    protected:
+        uint8_t* data_ = 0;
+        uint32_t data_size_ = 0;
+
+        uint8_t* create_data_(uint32_t size);
+        bool set_data_(int32_t* data, int size, int offset, int total_size);
+        void destroy_();
+
 };
 
 static lv_style_t item_style_normal_;
 static lv_style_t item_style_pressed_;
-class DashboardItem : public MdiFontCapable {
+class DashboardItem {
 
     protected:
         lv_obj_t* root_ = 0;
@@ -214,10 +226,8 @@ class SensorItem : public DashboardItem {
         void set_value(JsonObject data) override;
 };
 
-class ImageItem : public DashboardItem {
+class ImageItem : public DashboardItem, public WithDataBuffer {
     protected:
-        uint8_t* data_ = 0;
-        uint32_t data_size_ = 0;
         lv_img_dsc_t image_{};
     public:
         void setup(lv_obj_t* root) override;
@@ -225,7 +235,6 @@ class ImageItem : public DashboardItem {
         void set_data(int32_t* data, int size, int offset, int total_size) override;
         void destroy() override;
 
-        uint8_t* create_data(uint32_t size);
         void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t color);
         void show();
 };
@@ -235,7 +244,7 @@ static lv_style_t btn_style_pressed_;
 static lv_style_t btn_line_style_normal_;
 static lv_style_t btn_line_style_checked_;
 static lv_style_t btn_line_style_pressed_;
-class DashboardButton : public MdiFontCapable {
+class DashboardButton {
     protected:
         lv_obj_t* root_ = 0;
         lv_obj_t* line_ = 0;
@@ -294,15 +303,13 @@ static lv_style_t more_page_switch_ind_checked_;
 static lv_style_t more_page_switch_knob_;
 static lv_style_t more_page_switch_knob_checked_;
 static lv_style_t more_page_image_;
-class MoreInfoPage {
+class MoreInfoPage : public WithDataBuffer {
     protected:
         std::function<void(std::string, std::string, int)> change_listener_ = 0;
         std::function<void(std::string, std::string)> data_request_listener_ = 0;
         std::vector<std::string> ids_ {};
         std::string entity_id_;
 
-        uint8_t* data_ = 0;
-        uint32_t data_size_ = 0;
         lv_img_dsc_t image_{};
         lv_obj_t *image_cmp_ = 0;
 
