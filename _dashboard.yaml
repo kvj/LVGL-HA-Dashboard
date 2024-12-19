@@ -1,7 +1,3 @@
-# script:
-
-# globals:
-
 font:
   - file: custom_components/lvgl_dashboard/mdi_font/mdi-webfont.ttf
     id: mdi_60

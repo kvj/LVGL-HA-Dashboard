@@ -1014,7 +1014,7 @@ void LvglDashboard::set_buttons() {
     lv_obj_add_flag(this->dashboard_btn_, LV_OBJ_FLAG_HIDDEN);
     auto size = this->switches_.size();
     int cells = size > 0? size + 1: 2;
-    int dashboard_cell = size == 2? 1: 0;
+    int dashboard_cell = 0;
     for (int i = 0; i < cells; i++) { this->btns_col_dsc[i] = LV_GRID_FR(1); }
     this->btns_col_dsc[dashboard_cell] = LV_GRID_CONTENT;
     this->btns_col_dsc[cells] = LV_GRID_TEMPLATE_LAST;

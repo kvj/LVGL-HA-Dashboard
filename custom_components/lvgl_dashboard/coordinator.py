@@ -231,11 +231,10 @@ class Coordinator(DataUpdateCoordinator):
                 }
         if layout == "layout":
             items = []
-            ctype = self._g(item, "ctype", "text")
             for item_ in self.all_items(item, "items"):
                 entity_id_ = self._g(item_, "entity_id", state=state)
                 state_ = self.state_by_entity_id(entity_id_)
-                item__ = {"ctype": ctype}
+                item__ = {"ctype": self._g(item_, "ctype", "text", state=state_)}
                 for key, name in (("col", "x"), ("row", "y"), ("cols", "w"), ("rows", "h")):
                     if key in item_:
                         item__[name] = self._g(item_, key, state=state_)
@@ -249,8 +248,10 @@ class Coordinator(DataUpdateCoordinator):
                 item__["col"] = self.color_from_state(state_, item_)
                 item__["_h"] = self._g(item_, "hidden", state=state_)
                 items.append(item__)
+            ctype = self._g(item, "ctype", "button")
             return {
                 "ctype": ctype,
+                "col": self.color_from_state(state, item),
                 "items": items,
                 "cols": self._g(item, "lc", [1], state=state),
                 "rows": self._g(item, "lr", [1], state=state),

@@ -105,24 +105,6 @@ switch:
     name: Backlight
     entity_category: config
     icon: "mdi:brightness-6"
-  - platform: gpio
-    id: sw_0
-    pin:
-      number: 11
-      mode:
-        output: true
-      inverted: true
-    name: Switch 0
-    restore_mode: ALWAYS_OFF
-  - platform: gpio
-    id: sw_1
-    name: Switch 1
-    pin:
-      number: 13
-      mode:
-        output: true
-      inverted: true
-    restore_mode: ALWAYS_OFF
 
 rtttl:
   id: buzzer
@@ -133,16 +115,3 @@ output:
     id: buzzer_out
     pin:
       number: 6
-
-lvgl_dashboard:
-  id: dashboard_
-  mdi_font_small: mdi_30
-  mdi_font_large: mdi_60
-  normal_font: main_font_
-  large_font: large_font_
-  width: 740
-  height: 360
-  backlight: backlight_
-  switches:
-    - sw_0
-    - sw_1
