@@ -290,6 +290,13 @@ class Coordinator(DataUpdateCoordinator):
             name = "default"
         dashboard = self.get_dashboard(name)
         self._dashboard = self._to_template(dashboard)
+        theme = {}
+        for key in self._g(self._dashboard, "theme", {}):
+            value = self._g(self._dashboard["theme"], key)
+            if value or value == 0:
+                theme[key] = str(value)
+        _LOGGER.debug(f"async_send_dashboard: set_theme: {theme}")
+        self.call_device_service("set_theme", {"json_value": json.dumps(theme)})
         data = []
         all_entity_ids = set()
         for page in self.all_items(self._dashboard, "pages"):

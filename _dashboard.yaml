@@ -50,6 +50,13 @@ api:
         - lambda: |-
             ESP_LOGD("API", "set_value: %ld, %ld", page, item);
             id(dashboard_).service_set_value(page, item, json_value);
+    - service: set_theme
+      variables:
+        json_value: string
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "set_theme:");
+            id(dashboard_).service_set_theme(json_value);
     - service: set_data
       variables:
         page: int

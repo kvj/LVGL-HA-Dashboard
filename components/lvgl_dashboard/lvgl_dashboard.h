@@ -13,23 +13,6 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/rtttl/rtttl.h"
 
-/*
-switches:
-  - pin: 0
-  - button: true
-pages:
-  - rows: 4
-    cols: 8
-    tiles:
-      - icon: "mdi:xxx"
-        name: "Light"
-        status: "100%"
-        entity_id: xxx
-        cols: 2
-        rows: 2
-        layout:
- */
-
 namespace esphome {
 namespace lvgl_dashboard {
 
@@ -47,9 +30,6 @@ namespace lvgl_dashboard {
 #endif
 #ifndef LVD_BORDER_RADIUS
     #define LVD_BORDER_RADIUS 7
-#endif
-#ifndef LVD_PRESS_TRANSLATE_Y
-    #define LVD_PRESS_TRANSLATE_Y 3
 #endif
 #ifndef LVD_PANEL_BG_COLOR
     #define LVD_PANEL_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 4)
@@ -72,7 +52,43 @@ namespace lvgl_dashboard {
 #ifndef LVD_SWITCH_ON_LINE_COLOR
     #define LVD_SWITCH_ON_LINE_COLOR lv_palette_main(LV_PALETTE_ORANGE)
 #endif
+#ifndef LVD_SWITCH_LINE_HEIGHT
+    #define LVD_SWITCH_LINE_HEIGHT 7
+#endif
 
+typedef struct {
+    lv_color_t text_color;
+    lv_color_t bg_color;
+    lv_color_t text_on_color;
+    lv_color_t panel_bg_color;
+    lv_color_t btn_bg_color;
+    lv_color_t btn_pressed_color;
+    lv_color_t btn_on_color;
+    lv_color_t switch_line_color;
+    lv_color_t switch_pressed_line_color;
+    lv_color_t switch_on_line_color;
+    lv_coord_t switch_line_height;
+    lv_coord_t padding;
+    lv_coord_t radius;
+} ThemeDef;
+
+static ThemeDef boot_theme_ = {
+    .text_color = LVD_TEXT_COLOR,
+    .bg_color = LVD_BG_COLOR,
+    .text_on_color = LVD_TEXT_ON_COLOR,
+    .panel_bg_color = LVD_PANEL_BG_COLOR,
+    .btn_bg_color = LVD_BTN_BG_COLOR,
+    .btn_pressed_color = LVD_BTN_PRESSED_COLOR,
+    .btn_on_color = LVD_BTN_ON_COLOR,
+    .switch_line_color = LVD_SWITCH_LINE_COLOR,
+    .switch_pressed_line_color = LVD_SWITCH_PRESSED_LINE_COLOR,
+    .switch_on_line_color = LVD_SWITCH_ON_LINE_COLOR,
+    .switch_line_height = LVD_SWITCH_LINE_HEIGHT,
+    .padding = LVD_PADDING,
+    .radius = LVD_BORDER_RADIUS,
+};
+
+static ThemeDef theme_ = boot_theme_;
 
 static esphome::lvgl::FontEngine* small_mdi_font = 0;
 static esphome::lvgl::FontEngine* large_mdi_font = 0;
@@ -179,7 +195,7 @@ class DashboardItem {
 
     public:
         void set_definition(ItemDef* def) { this->def_ = def; }
-        static void init(lv_obj_t* obj);
+        static void init(lv_obj_t* obj, bool init);
         lv_obj_t* get_lv_obj() { return this->root_; }
 
         virtual void setup(lv_obj_t* root);
@@ -250,14 +266,13 @@ class DashboardButton {
         lv_obj_t* line_ = 0;
         esphome::switch_::Switch* switch_ = 0;
 
-        void update_state(bool state);
 
         DashboardButtonListenerDef listener_{.listener = 0};
 
         void set_side_icon(lv_obj_t* obj, JsonObject data);
 
     public:
-        static void init(lv_obj_t* obj);
+        static void init(lv_obj_t* obj, bool init);
         void setup(lv_obj_t* root, esphome::switch_::Switch* switch_);
         void destroy();
         lv_obj_t* get_lv_obj() { return this->root_; }
@@ -269,6 +284,7 @@ class DashboardButton {
             this->listener_.listener = listener;
         }
         void set_value(JsonObject data);
+        void update_state(bool state);
 };
 
 static lv_style_t page_style_;
@@ -285,7 +301,7 @@ class DashboardPage {
 
     public:
         DashboardPage(PageDef* def) { this->def_ = def; }
-        static void init(lv_obj_t* obj);
+        static void init(lv_obj_t* obj, bool init);
         void setup(lv_obj_t* parent, int page, LvglItemEventListener *listener);
         void destroy();
         lv_obj_t* get_lv_obj() { return this->root_; }
@@ -314,7 +330,7 @@ class MoreInfoPage : public WithDataBuffer {
         lv_obj_t *image_cmp_ = 0;
 
     public:
-        static void init(lv_obj_t* obj);
+        static void init(lv_obj_t* obj, bool init);
 
         void setup(lv_obj_t* parent, JsonObject data);
         void destroy();
@@ -356,14 +372,18 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         std::vector<DashboardButton*> button_objs_ = {};
         PageDef pages_[16] {};
         
-        lv_theme_t* theme_;
+        lv_obj_t* page_ = 0;
+        lv_theme_t* theme__;
+
         lv_obj_t* buttons_ = 0;
         lv_obj_t* dashboard_btn_ = 0;
-        lv_obj_t* page_ = 0;
+
         lv_obj_t* sub_page_ = 0;
         lv_obj_t* sub_page_close_btn_ = 0;
+
         lv_obj_t* more_page_ = 0;
         lv_obj_t* more_page_close_btn_ = 0;
+
         MoreInfoPage* more_info_page_ = 0;
         
         int width_ = 0;
@@ -396,6 +416,10 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         bool more_page_visible();
         bool turn_backlight();
 
+        void clear_buttons();
+        void clear_pages();
+        void clear();
+
     public:
 
         void set_mdi_fonts(esphome::font::Font* small_font, esphome::font::Font* large_font);
@@ -405,7 +429,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
                 this->large_font_ = new esphome::lvgl::FontEngine(large_font);
             }
         }
-        void init(lv_obj_t* obj);
+        void init(lv_obj_t* obj, bool init);
         void set_lvgl(esphome::lvgl::LvglComponent *root) { this->root_ = root; }
         void set_api_server(esphome::api::APIServer* api_server) { this->api_server_ = api_server; }
         void set_config(int width, int height) {
@@ -418,7 +442,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         void setup() override;
         void loop() override;
 
-        void add_switch(esphome::switch_::Switch* switch_) { this->switches_.push_back(switch_); }
+        void add_switch(esphome::switch_::Switch* switch_);
 
         void on_item_event(int page, int item, int event) override;
         void on_data_request(int page, int item) override;
@@ -447,6 +471,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         void service_hide_more();
         void service_set_data_more(int32_t* data, int size, int offset, int total_size);
         void service_play_rtttl(std::string song);
+        void service_set_theme(std::string json_value);
 };
 
 }

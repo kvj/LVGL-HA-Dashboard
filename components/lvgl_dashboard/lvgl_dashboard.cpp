@@ -254,10 +254,6 @@ void DashboardButton::on_event(lv_event_t* event) {
         lv_obj_clear_state(this->line_, LV_STATE_PRESSED);
     }
     ESP_LOGD(TAG, "DashboardButton::on_event: %d", code);
-    if (code == LV_EVENT_GESTURE) {
-        auto dir = lv_indev_get_gesture_dir(lv_indev_get_act());
-        ESP_LOGD(TAG, "DashboardButton::on_event: gesture %d", dir);
-    }
 }
 
 void DashboardButton::on_tap_event(lv_event_code_t code, lv_event_t* event) {
@@ -269,28 +265,29 @@ void DashboardButton::on_tap_event(lv_event_code_t code, lv_event_t* event) {
     }
 }
 
-void DashboardButton::init(lv_obj_t* obj) {
-    lv_style_init(&btn_style_normal_);
-    lv_style_set_pad_all(&btn_style_normal_, LVD_PADDING);
-    lv_style_set_radius(&btn_style_normal_, LVD_BORDER_RADIUS);
+void DashboardButton::init(lv_obj_t* obj, bool init) {
+    if (init) {
+        lv_style_init(&btn_style_normal_);
+        lv_style_init(&btn_style_pressed_);
+        lv_style_init(&btn_line_style_normal_);
+        lv_style_init(&btn_line_style_pressed_);
+        lv_style_init(&btn_line_style_checked_);
+    }
+    lv_style_set_pad_all(&btn_style_normal_, theme_.padding);
+    lv_style_set_radius(&btn_style_normal_, theme_.radius);
 
-    lv_style_init(&btn_style_pressed_);
-    lv_style_set_bg_color(&btn_style_pressed_, LVD_BTN_PRESSED_COLOR);
+    lv_style_set_bg_color(&btn_style_pressed_, theme_.btn_pressed_color);
     lv_style_set_bg_opa(&btn_style_pressed_, LV_OPA_50);
-    // lv_style_set_translate_y(&btn_style_pressed_, LVD_PRESS_TRANSLATE_Y);
 
-    lv_style_init(&btn_line_style_normal_);
     lv_style_set_bg_opa(&btn_line_style_normal_, LV_OPA_COVER);
-    lv_style_set_bg_color(&btn_line_style_normal_, LVD_SWITCH_LINE_COLOR);
-    lv_style_set_radius(&btn_line_style_normal_, 3);
+    lv_style_set_bg_color(&btn_line_style_normal_, theme_.switch_line_color);
+    lv_style_set_radius(&btn_line_style_normal_, theme_.switch_line_height / 2);
     lv_style_set_width(&btn_line_style_normal_, lv_pct(100));
-    lv_style_set_height(&btn_line_style_normal_, 7);
+    lv_style_set_height(&btn_line_style_normal_, theme_.switch_line_height);
 
-    lv_style_init(&btn_line_style_pressed_);
-    lv_style_set_bg_color(&btn_line_style_pressed_, LVD_SWITCH_PRESSED_LINE_COLOR);
+    lv_style_set_bg_color(&btn_line_style_pressed_, theme_.switch_pressed_line_color);
 
-    lv_style_init(&btn_line_style_checked_);
-    lv_style_set_bg_color(&btn_line_style_checked_, LVD_SWITCH_ON_LINE_COLOR);
+    lv_style_set_bg_color(&btn_line_style_checked_, theme_.switch_on_line_color);
 }
 
 void DashboardButton::update_state(bool state) {
@@ -312,7 +309,6 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_add_style(this->root_, &btn_style_pressed_, LV_STATE_PRESSED);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_PRESSED, this);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_RELEASED, this);
-    lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_GESTURE, this);
     subscribe_to_tap_events_(this->root_, this);
 
     lv_obj_add_flag(lv_label_create(this->root_), LV_OBJ_FLAG_HIDDEN);
@@ -333,11 +329,11 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_set_layout(this->root_, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(this->root_, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(this->root_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    lv_obj_set_style_pad_column(this->root_, LVD_PADDING, 0);
+    lv_obj_set_style_pad_column(this->root_, theme_.padding, 0);
 
-    switch_->add_on_state_callback([this](bool state) {
-        this->update_state(state);
-    });
+    // switch_->add_on_state_callback([this](bool state) {
+    //     this->update_state(state);
+    // });
     this->update_state(switch_->state);
 }
 
@@ -347,11 +343,12 @@ void DashboardButton::set_side_icon(lv_obj_t* obj, JsonObject data) {
     } else {
         icons_->set_icon(obj, data["icon"]);
         lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_text_color(obj, LVD_TEXT_COLOR, 0);
+        lv_obj_set_style_text_color(obj, theme_.text_color, 0);
     }
 }
 
 void DashboardButton::set_value(JsonObject data) {
+    ESP_LOGD(TAG, "DashboardButton::set_value: %d", lv_obj_get_child_cnt(this->root_));
     JsonObject left = data["left"];
     JsonObject right = data["right"];
     this->set_side_icon(lv_obj_get_child(this->root_, 0), left);
@@ -359,19 +356,22 @@ void DashboardButton::set_value(JsonObject data) {
 }
 
 void DashboardButton::destroy() {
-    lv_obj_del(this->root_);
+    if (lv_obj_is_valid(this->root_))
+        lv_obj_del(this->root_);
+    this->root_ = 0;
 }
 
-void DashboardItem::init(lv_obj_t* obj) {
-    lv_style_init(&item_style_normal_);
-    lv_style_init(&item_style_pressed_);
+void DashboardItem::init(lv_obj_t* obj, bool init) {
+    if (init) {
+        lv_style_init(&item_style_normal_);
+        lv_style_init(&item_style_pressed_);
+    }
 
     lv_style_set_bg_opa(&item_style_normal_, LV_OPA_COVER);
-    lv_style_set_radius(&item_style_normal_, LVD_BORDER_RADIUS);
-    lv_style_set_pad_all(&item_style_normal_, LVD_PADDING);
+    lv_style_set_radius(&item_style_normal_, theme_.radius);
+    lv_style_set_pad_all(&item_style_normal_, theme_.padding);
 
-    // lv_style_set_translate_y(&item_style_pressed_, LVD_PRESS_TRANSLATE_Y);
-    lv_style_set_bg_color(&item_style_pressed_, LVD_BTN_PRESSED_COLOR);
+    lv_style_set_bg_color(&item_style_pressed_, theme_.btn_pressed_color);
 }
 
 void DashboardItem::loop() {
@@ -427,45 +427,45 @@ void DashboardItem::set_bg_color(lv_obj_t* obj, JsonObject data) {
     std::string mode = data["ctype"];
     std::string color = data["col"];
     if (color == "") {
-        lv_obj_set_style_bg_color(obj, LVD_BTN_BG_COLOR, 0);
+        lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
         return;
     }
     if (mode == "text") {
-        lv_obj_set_style_bg_color(obj, LVD_BTN_BG_COLOR, 0);
+        lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
         return;
     }
     if (color == "on") {
-        lv_obj_set_style_bg_color(obj, LVD_BTN_ON_COLOR, 0);
+        lv_obj_set_style_bg_color(obj, theme_.btn_on_color, 0);
         return;
     }
     if (color.size() == 7) {
         lv_obj_set_style_bg_color(obj, lv_color_hex((uint32_t)std::stol(color.substr(1), nullptr, 16)), 0);
         return;
     }
-    lv_obj_set_style_bg_color(obj, LVD_BTN_BG_COLOR, 0);
+    lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
 }
 
 void DashboardItem::set_text_color(lv_obj_t* obj, JsonObject data) {
     std::string mode = data["ctype"];
     std::string color = data["col"];
     if (color == "") {
-        lv_obj_set_style_text_color(obj, LVD_TEXT_COLOR, 0);
+        lv_obj_set_style_text_color(obj, theme_.text_color, 0);
         return;
     }
     if (mode == "text") {
         if (color == "on") {
-            lv_obj_set_style_text_color(obj, LVD_BTN_ON_COLOR, 0);
+            lv_obj_set_style_text_color(obj, theme_.btn_on_color, 0);
             return;
         }
         if (color.size() == 7) {
             lv_obj_set_style_text_color(obj, lv_color_hex((uint32_t)std::stol(color.substr(1), nullptr, 16)), 0);
             return;
         }
-        lv_obj_set_style_text_color(obj, LVD_TEXT_COLOR, 0);
+        lv_obj_set_style_text_color(obj, theme_.text_color, 0);
         return;
     }
     if (color.size() > 0) {
-        lv_obj_set_style_text_color(obj, LVD_BG_COLOR, 0); // BG set - dark text
+        lv_obj_set_style_text_color(obj, theme_.bg_color, 0); // BG set - dark text
         return;
     }
 }
@@ -576,7 +576,7 @@ void ImageItem::set_value(JsonObject data) {
 
 void LocalItem::setup(lv_obj_t* root) {
     DashboardItem::setup(root);
-    lv_obj_set_style_bg_color(this->root_, LVD_PANEL_BG_COLOR, 0);
+    lv_obj_set_style_bg_color(this->root_, theme_.panel_bg_color, 0);
     this->col_dsc_[1] = LV_GRID_TEMPLATE_LAST;
     this->row_dsc_[0] = LV_GRID_FR(7);
     this->row_dsc_[1] = LV_GRID_FR(3);
@@ -598,13 +598,13 @@ void LocalItem::setup(lv_obj_t* root) {
 
 void LayoutItem::setup(lv_obj_t* root) {
     DashboardItem::setup(root);
-    lv_obj_set_style_bg_color(this->root_, LVD_BTN_BG_COLOR, 0);
+    lv_obj_set_style_bg_color(this->root_, theme_.btn_bg_color, 0);
     subscribe_to_tap_events_(this->root_, this);
 }
 
 void ButtonItem::setup(lv_obj_t* root) {
     DashboardItem::setup(root);
-    lv_obj_set_style_bg_color(this->root_, LVD_BTN_BG_COLOR, 0);
+    lv_obj_set_style_bg_color(this->root_, theme_.btn_bg_color, 0);
     this->col_dsc_[1] = LV_GRID_TEMPLATE_LAST;
     this->row_dsc_[0] = LV_GRID_FR(8);
     this->row_dsc_[1] = LV_GRID_FR(2);
@@ -621,14 +621,14 @@ void ButtonItem::setup(lv_obj_t* root) {
     lv_obj_set_grid_cell(label, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, 1, 1);
     lv_obj_set_style_text_font(label, lv_theme_get_font_normal(root), 0);
     lv_label_set_text(label, "");
-    subscribe_to_tap_events_(this->root_, this);    
+    subscribe_to_tap_events_(this->root_, this);
 }
 
 void SensorItem::setup(lv_obj_t* root) {
     DashboardItem::setup(root);
-    lv_obj_set_style_bg_color(this->root_, LVD_PANEL_BG_COLOR, 0);
-    this->col_dsc_[0] = 25; this->col_dsc_[2] = LV_GRID_CONTENT; this->col_dsc_[3] = LV_GRID_TEMPLATE_LAST; 
-    this->row_dsc_[0] = 25; this->row_dsc_[2] = LV_GRID_TEMPLATE_LAST;
+    lv_obj_set_style_bg_color(this->root_, theme_.panel_bg_color, 0);
+    this->col_dsc_[0] = 30; this->col_dsc_[2] = LV_GRID_CONTENT; this->col_dsc_[3] = LV_GRID_TEMPLATE_LAST; 
+    this->row_dsc_[0] = 30; this->row_dsc_[2] = LV_GRID_TEMPLATE_LAST;
     lv_obj_set_style_grid_row_dsc_array(this->root_, this->row_dsc_, 0);
     lv_obj_set_style_grid_column_dsc_array(this->root_, this->col_dsc_, 0);
     lv_obj_set_layout(this->root_, LV_LAYOUT_GRID);
@@ -655,7 +655,7 @@ void SensorItem::setup(lv_obj_t* root) {
 
 void ImageItem::setup(lv_obj_t* root) {
     DashboardItem::setup(root);
-    lv_obj_set_style_bg_color(this->root_, LVD_BTN_BG_COLOR, 0);
+    lv_obj_set_style_bg_color(this->root_, theme_.btn_bg_color, 0);
     lv_obj_t* image = lv_img_create(this->root_);
     lv_obj_center(image);
     lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);
@@ -681,12 +681,13 @@ void DashboardItem::setup(lv_obj_t* root) {
     lv_obj_set_size(this->root_, lv_pct(100), lv_pct(100));
     lv_obj_add_style(this->root_, &item_style_normal_, 0);
     lv_obj_add_style(this->root_, &item_style_pressed_, LV_STATE_PRESSED);
-    lv_obj_set_style_bg_color(this->root_, LVD_PANEL_BG_COLOR, 0);
+    lv_obj_set_style_bg_color(this->root_, theme_.panel_bg_color, 0);
 }
 
 void DashboardItem::destroy() {
     if (this->root_ != 0) {
-        lv_obj_del(this->root_);
+        if (lv_obj_is_valid(this->root_))
+            lv_obj_del(this->root_);
         this->root_ = 0;
     }
 }
@@ -701,10 +702,12 @@ DashboardItem* DashboardItem::new_instance(ItemDef* def) {
     return 0;
 }
 
-void DashboardPage::init(lv_obj_t* obj) {
-    lv_style_init(&page_style_);
-    lv_style_set_pad_column(&page_style_, LVD_PADDING);
-    lv_style_set_pad_row(&page_style_, LVD_PADDING);
+void DashboardPage::init(lv_obj_t* obj, bool init) {
+    if (init) {
+        lv_style_init(&page_style_);
+    }
+    lv_style_set_pad_column(&page_style_, theme_.padding);
+    lv_style_set_pad_row(&page_style_, theme_.padding);
     lv_style_set_bg_opa(&page_style_, LV_OPA_TRANSP);
 }
 
@@ -745,7 +748,8 @@ void DashboardPage::destroy() {
     this->items_.clear();
 
     if (this->root_ != 0) {
-        lv_obj_del(this->root_);
+        if (lv_obj_is_valid(this->root_))
+            lv_obj_del(this->root_);
         this->root_ = 0;
     }
 }
@@ -760,43 +764,107 @@ void DashboardPage::for_each_item(std::function<void(int, DashboardItem*)> &&fn,
 ItemDef default_item_ = {.col = 2, .row = 1, .cols = 1, .rows = 1, .icon = "\U000F0709", .label = "Loading...", .layout = "local"};
 PageDef default_page_ = {.cols = 5, .rows = 3, .items = { default_item_ }, .items_size = 1};
 
-void LvglDashboard::init(lv_obj_t* obj) {
-    lv_style_init(&root_page_style_);
-    lv_style_init(&sub_page_style_);
-    lv_style_init(&top_style_);
-    lv_style_init(&top_style_collapsed_);
-    lv_style_init(&root_btn_style_normal_);
-    lv_style_init(&root_btn_style_pressed_);
+void LvglDashboard::init(lv_obj_t* obj, bool init) {
+    if (init) {
+        lv_style_init(&root_page_style_);
+        lv_style_init(&sub_page_style_);
+        lv_style_init(&top_style_);
+        lv_style_init(&top_style_collapsed_);
+        lv_style_init(&root_btn_style_normal_);
+        lv_style_init(&root_btn_style_pressed_);
+    }
 
-    lv_style_set_bg_color(&root_page_style_, LVD_BG_COLOR);
-    lv_style_set_text_color(&root_page_style_, LVD_TEXT_COLOR);
+    this->clear();
+
+    DashboardButton::init(obj, init);
+    DashboardPage::init(obj, init);
+    DashboardItem::init(obj, init);
+    MoreInfoPage::init(obj, init);
+
+    lv_style_set_bg_color(&root_page_style_, theme_.bg_color);
+    lv_style_set_text_color(&root_page_style_, theme_.text_color);
     lv_style_set_bg_opa(&root_page_style_, LV_OPA_COVER);
-    lv_style_set_pad_all(&root_page_style_, LVD_PADDING);
+    lv_style_set_pad_all(&root_page_style_, theme_.padding);
 
-    lv_style_set_bg_color(&sub_page_style_, LVD_BG_COLOR);
-    lv_style_set_text_color(&sub_page_style_, LVD_TEXT_COLOR);
+    lv_style_set_bg_color(&sub_page_style_, theme_.bg_color);
+    lv_style_set_text_color(&sub_page_style_, theme_.text_color);
     lv_style_set_bg_opa(&sub_page_style_, LV_OPA_COVER);
-    lv_style_set_pad_all(&sub_page_style_, LVD_PADDING);
+    lv_style_set_pad_all(&sub_page_style_, theme_.padding);
 
-    lv_obj_set_style_pad_all(lv_layer_top(), LVD_PADDING, 0);
+    lv_obj_set_style_pad_all(lv_layer_top(), theme_.padding, 0);
 
     lv_style_set_bg_opa(&top_style_, LV_OPA_TRANSP);
-    lv_style_set_radius(&top_style_, LVD_BORDER_RADIUS);
-    lv_style_set_pad_column(&top_style_, LVD_PADDING);
+    lv_style_set_radius(&top_style_, theme_.radius);
+    lv_style_set_pad_column(&top_style_, theme_.padding);
     lv_style_set_width(&top_style_, lv_pct(100));
     lv_style_set_height(&top_style_, lv_pct(100));
 
-    lv_style_set_bg_color(&top_style_collapsed_, LVD_PANEL_BG_COLOR);
+    lv_style_set_bg_color(&top_style_collapsed_, theme_.panel_bg_color);
     lv_style_set_bg_opa(&top_style_collapsed_, LV_OPA_COVER);
-    lv_style_set_height(&top_style_collapsed_, 35 + 4 * LVD_PADDING);
+    lv_style_set_height(&top_style_collapsed_, 35 + 4 * theme_.padding);
 
-    lv_style_set_radius(&root_btn_style_normal_, LVD_BORDER_RADIUS);
-    lv_style_set_pad_all(&root_btn_style_normal_, LVD_PADDING);
-    lv_style_set_bg_color(&root_btn_style_normal_, LVD_BTN_BG_COLOR);
+    lv_style_set_radius(&root_btn_style_normal_, theme_.radius);
+    lv_style_set_pad_all(&root_btn_style_normal_, theme_.padding);
+    lv_style_set_bg_color(&root_btn_style_normal_, theme_.btn_bg_color);
     lv_style_set_bg_opa(&root_btn_style_normal_, LV_OPA_COVER);
 
-    // lv_style_set_translate_y(&root_btn_style_pressed_, LVD_PRESS_TRANSLATE_Y);
-    lv_style_set_bg_color(&root_btn_style_pressed_, LVD_BTN_PRESSED_COLOR);
+    lv_style_set_bg_color(&root_btn_style_pressed_, theme_.btn_pressed_color);
+
+    this->create_root_page(this->page_);
+    this->sub_page_ = this->create_sub_page(lv_obj_create(NULL));
+    this->more_page_ = this->create_more_page(lv_obj_create(NULL));
+
+    this->buttons_ = this->create_buttons(lv_layer_top());
+    this->set_buttons();
+
+}
+
+void LvglDashboard::add_switch(esphome::switch_::Switch* switch_) { 
+    int index = this->switches_.size();
+    this->switches_.push_back(switch_);
+    switch_->add_on_state_callback([this, index](bool state) {
+        ESP_LOGD(TAG, "LvglDashboard::add_on_state_callback: %d, %d, %d", state, index, this->button_objs_.size());
+        if (index < this->button_objs_.size()) {
+            this->button_objs_[index]->update_state(state);
+        }
+    });
+}
+
+void LvglDashboard::clear_buttons() {
+    for (auto* item: this->button_objs_) {
+        item->destroy();
+        free(item);
+    }
+    this->button_objs_.clear();
+}
+
+void LvglDashboard::clear_pages() {
+    this->show_page(0);
+    if (this->more_page_visible())
+        this->hide_more_page();
+    this->page_no_ = 0; // To avoid double destroy
+    for (auto* item: this->page_objs_) {
+        item->destroy();
+        free(item);
+    }
+    this->page_objs_.clear();
+}
+
+void LvglDashboard::clear() {
+    this->clear_buttons();
+    lv_obj_clean(lv_layer_top());
+
+    this->clear_pages();
+    lv_obj_clean(this->page_);
+
+    if (this->more_info_page_ != 0) {
+        lv_obj_del(this->more_page_);
+        this->more_page_ = 0;
+    }
+    if (this->sub_page_ != 0) {
+        lv_obj_del(this->sub_page_);
+        this->sub_page_ = 0;
+    }
 
 }
 
@@ -824,6 +892,7 @@ lv_obj_t* LvglDashboard::create_sub_page(lv_obj_t* root) {
 }
 
 lv_obj_t* LvglDashboard::create_more_page(lv_obj_t* root) {
+
     static lv_coord_t row_dsc_[2] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
     static lv_coord_t col_dsc_[3] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
@@ -845,7 +914,7 @@ lv_obj_t* LvglDashboard::create_more_page(lv_obj_t* root) {
     lv_obj_set_layout(dashboard_, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(dashboard_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(dashboard_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(dashboard_, 2 * LVD_PADDING, 0);
+    lv_obj_set_style_pad_row(dashboard_, 2 * theme_.padding, 0);
 
     return root;
 }
@@ -854,9 +923,8 @@ lv_obj_t* LvglDashboard::create_root_page(lv_obj_t* root) {
     static lv_coord_t row_dsc_[2] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
     static lv_coord_t col_dsc_[3] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
-    lv_obj_remove_style_all(root);
     lv_obj_set_style_grid_row_dsc_array(root, row_dsc_, 0);
-    lv_obj_set_style_grid_column_dsc_array(root, col_dsc_, 0);    
+    lv_obj_set_style_grid_column_dsc_array(root, col_dsc_, 0);
     lv_obj_set_layout(root, LV_LAYOUT_GRID);
 
     lv_obj_add_style(root, &root_page_style_, 0);
@@ -864,8 +932,6 @@ lv_obj_t* LvglDashboard::create_root_page(lv_obj_t* root) {
     lv_obj_remove_style_all(dashboard_);
     lv_obj_set_size(dashboard_, this->width_, this->height_);
     lv_obj_set_grid_cell(dashboard_, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_START, 0, 1);
-
-    lv_obj_add_event_cb(root, lvgl_event_listener_<LvglDashboard>, LV_EVENT_GESTURE, this);
 
     return root;
 }
@@ -881,7 +947,7 @@ lv_obj_t* LvglDashboard::create_root_btn(lv_obj_t* root, std::string icon) {
     auto* label = lv_label_create(obj);
     lv_obj_center(label);
     lv_obj_set_style_text_font(label, small_mdi_font->get_lv_font(), 0);
-    lv_obj_set_style_text_color(label, LVD_TEXT_COLOR, 0);
+    lv_obj_set_style_text_color(label, theme_.text_color, 0);
     lv_label_set_text(label, icon.c_str());
     return obj;
 }
@@ -899,7 +965,7 @@ lv_obj_t* LvglDashboard::create_buttons(lv_obj_t* root) {
     lv_obj_set_layout(buttons_, LV_LAYOUT_GRID);
 
     this->dashboard_btn_ = this->create_root_btn(buttons_, "\U000F056E");
-    lv_obj_set_style_bg_color(this->dashboard_btn_, LVD_SWITCH_ON_LINE_COLOR, LV_STATE_USER_1);
+    lv_obj_set_style_bg_color(this->dashboard_btn_, theme_.switch_on_line_color, LV_STATE_USER_1);
     lv_obj_add_flag(this->dashboard_btn_, LV_OBJ_FLAG_HIDDEN);
     subscribe_to_tap_events_(this->dashboard_btn_, this);
     return buttons_;
@@ -908,36 +974,25 @@ lv_obj_t* LvglDashboard::create_buttons(lv_obj_t* root) {
 void LvglDashboard::setup() {
  
     this->page_ = lv_scr_act();
-    // ESP_LOGD(TAG, "Getting current page root: %d", (this->page_ != 0));
 
     // Cleanup
     lv_obj_clean(this->page_);
     lv_obj_remove_style_all(this->page_);
 
-    // ESP_LOGD(TAG, "Getting current page root: %d, %d", lv_obj_get_width(this->page_), lv_obj_get_x(this->page_));
-
     // Init theme
     auto* normal_font_ = this->normal_font_ != 0? this->normal_font_->get_lv_font(): &lv_font_montserrat_14;
-    this->theme_ = lv_theme_default_init(
+    this->theme__ = lv_theme_default_init(
         this->root_->get_disp(), 
         LVD_SWITCH_LINE_COLOR, LVD_SWITCH_PRESSED_LINE_COLOR, 
         true, 
         normal_font_
     );
-    this->theme_->font_large = this->large_font_ != 0? this->large_font_->get_lv_font(): &lv_font_montserrat_28;
-    this->theme_->font_small = &lv_font_montserrat_12;
-    lv_disp_set_theme(this->root_->get_disp(), this->theme_);
+    this->theme__->font_large = this->large_font_ != 0? this->large_font_->get_lv_font(): &lv_font_montserrat_28;
+    this->theme__->font_small = &lv_font_montserrat_12;
+    lv_disp_set_theme(this->root_->get_disp(), this->theme__);
 
-    this->init(this->page_);
-    DashboardButton::init(this->page_);
-    DashboardPage::init(this->page_);
-    DashboardItem::init(this->page_);
-    MoreInfoPage::init(this->page_);
+    this->init(this->page_, true);
 
-    this->page_ = this->create_root_page(this->page_);
-    this->sub_page_ = this->create_sub_page(lv_obj_create(NULL));
-    this->more_page_ = this->create_more_page(lv_obj_create(NULL));
-    this->buttons_ = this->create_buttons(lv_layer_top());
     this->more_info_page_ = new MoreInfoPage();
     this->more_info_page_->set_change_listener([this](std::string entity_id, std::string id, int value) {
         this->send_event_("change", [&entity_id, &id, &value] (esphome::api::HomeassistantServiceResponse* resp) {
@@ -971,7 +1026,6 @@ void LvglDashboard::setup() {
         });
     });
 
-    this->set_buttons();
     this->set_pages(&default_page_, 1);
     this->render_page(0);
 }
@@ -1006,13 +1060,10 @@ void LvglDashboard::show_buttons(bool visible) {
 }
 
 void LvglDashboard::set_buttons() {
-    for (auto* item: this->button_objs_) {
-        item->destroy();
-        free(item);
-    }
-    this->button_objs_.clear();
+    this->clear_buttons();
     lv_obj_add_flag(this->dashboard_btn_, LV_OBJ_FLAG_HIDDEN);
     auto size = this->switches_.size();
+    ESP_LOGD(TAG, "LvglDashboard::set_buttons: %d", size);
     int cells = size > 0? size + 1: 2;
     int dashboard_cell = 0;
     for (int i = 0; i < cells; i++) { this->btns_col_dsc[i] = LV_GRID_FR(1); }
@@ -1063,12 +1114,8 @@ void LvglDashboard::hide_more_page() {
 
 
 void LvglDashboard::set_pages(PageDef* pages, int size) {
-    this->page_no_ = 0; // To avoid double destroy
-    for (auto* item: this->page_objs_) {
-        item->destroy();
-        free(item);
-    }
-    this->page_objs_.clear();
+    ESP_LOGD(TAG, "LvglDashboard::set_pages %d", size);
+    this->clear_pages();
 
     for (int i = 0; i < size; i++) {
         auto* page = new DashboardPage(&pages[i]);
@@ -1093,13 +1140,13 @@ void LvglDashboard::show_page(int index) {
 
 void LvglDashboard::render_page(int index) {
     auto* root = this->page_;
+    // ESP_LOGD(TAG, "LvglDashboard::render_page[%d]: %d, %p", index, lv_obj_get_child_cnt(root), root);
     auto* dashboard = lv_obj_get_child(root, 0);
 
     if (index > 0) {
         root = this->sub_page_;
         dashboard = lv_obj_get_child(root, 1);
     }
-    // lv_obj_clean(dashboard);
 
     this->page_objs_[index]->setup(dashboard, index, this);
     lv_disp_load_scr(root);
@@ -1113,6 +1160,40 @@ void LvglDashboard::set_mdi_fonts(esphome::font::Font* small_font, esphome::font
     small_mdi_font = new esphome::lvgl::FontEngine(small_font);
     large_mdi_font = new esphome::lvgl::FontEngine(large_font);
     ESP_LOGD(TAG, "Font params: %d, %d", large_mdi_font->get_lv_font()->line_height, small_mdi_font->get_lv_font()->line_height);
+}
+
+static lv_color_t parse_color_(std::string value, lv_color_t def) {
+    ESP_LOGD(TAG, "parse_color_: %s, %u", value.c_str(), value.size());
+    if (value.size() == 7) return lv_color_hex((uint32_t)std::stol(value.substr(1), nullptr, 16));
+    return def;
+}
+
+static lv_coord_t parse_coord_(std::string value, lv_coord_t def) {
+    ESP_LOGD(TAG, "parse_coord_: %s, %u", value.c_str(), value.size());
+    if (value.size() > 0) return (lv_coord_t)std::stoi(value, nullptr, 10);
+    return def;
+}
+
+#define LVD_SET_THEME_COLOR(name, field) theme_.field = obj.containsKey(name)? parse_color_(obj[name], boot_theme_.field): boot_theme_.field
+#define LVD_SET_THEME_COORD(name, field) theme_.field = obj.containsKey(name)? parse_coord_(obj[name], boot_theme_.field): boot_theme_.field
+
+void LvglDashboard::service_set_theme(std::string json_value) {
+    json_parse_(json_value, [this](JsonObject obj) {
+        LVD_SET_THEME_COLOR("text_color", text_color);
+        LVD_SET_THEME_COLOR("bg_color", bg_color);
+        LVD_SET_THEME_COLOR("text_on_color", text_on_color);
+        LVD_SET_THEME_COLOR("panel_bg_color", panel_bg_color);
+        LVD_SET_THEME_COLOR("btn_bg_color", btn_bg_color);
+        LVD_SET_THEME_COLOR("btn_pressed_color", btn_pressed_color);
+        LVD_SET_THEME_COLOR("btn_on_color", btn_on_color);
+        LVD_SET_THEME_COLOR("switch_line_color", switch_line_color);
+        LVD_SET_THEME_COLOR("switch_pressed_line_color", switch_pressed_line_color);
+        LVD_SET_THEME_COLOR("switch_on_line_color", switch_on_line_color);
+        LVD_SET_THEME_COORD("switch_line_height", switch_line_height);
+        LVD_SET_THEME_COORD("padding", padding);
+        LVD_SET_THEME_COORD("radius", radius);
+    });
+    this->init(this->page_, false);
 }
 
 void LvglDashboard::service_set_pages(std::vector<std::string> pages, int page) {
@@ -1271,10 +1352,6 @@ void LvglDashboard::on_tap_event(lv_event_code_t code, lv_event_t* event) {
 
 void LvglDashboard::on_event(lv_event_t* event) {
     ESP_LOGD(TAG, "LvglDashboard::on_event: %d", event->code);
-    if (event->code == LV_EVENT_GESTURE) {
-        auto dir = lv_indev_get_gesture_dir(lv_indev_get_act());
-        ESP_LOGD(TAG, "LvglDashboard::on_event: gesture %d", dir);
-    }
 }
 
 void LvglDashboard::service_show_page(int page) {
@@ -1327,48 +1404,50 @@ void LvglDashboard::service_play_rtttl(std::string song) {
     }
 }
 
-void MoreInfoPage::init(lv_obj_t* obj) {
-    lv_style_init(&more_page_base_);
-    lv_style_init(&more_page_slider_);
-    lv_style_init(&more_page_slider_ind_);
-    lv_style_init(&more_page_slider_knob_);
+void MoreInfoPage::init(lv_obj_t* obj, bool init) {
+    if (init) {
+        lv_style_init(&more_page_base_);
+        lv_style_init(&more_page_slider_);
+        lv_style_init(&more_page_slider_ind_);
+        lv_style_init(&more_page_slider_knob_);
 
-    lv_style_init(&more_page_switch_);
-    lv_style_init(&more_page_switch_ind_);
-    lv_style_init(&more_page_switch_ind_checked_);
-    lv_style_init(&more_page_switch_knob_);
-    lv_style_init(&more_page_switch_knob_checked_);
-    lv_style_init(&more_page_image_);
+        lv_style_init(&more_page_switch_);
+        lv_style_init(&more_page_switch_ind_);
+        lv_style_init(&more_page_switch_ind_checked_);
+        lv_style_init(&more_page_switch_knob_);
+        lv_style_init(&more_page_switch_knob_checked_);
+        lv_style_init(&more_page_image_);
+    }
 
     lv_style_set_width(&more_page_base_, lv_pct(100));
     lv_style_set_max_width(&more_page_base_, lv_pct(70));
     lv_style_set_height(&more_page_base_, 100);
-    lv_style_set_radius(&more_page_base_, LVD_BORDER_RADIUS);
-    lv_style_set_bg_color(&more_page_base_, LVD_PANEL_BG_COLOR);
+    lv_style_set_radius(&more_page_base_, theme_.radius);
+    lv_style_set_bg_color(&more_page_base_, theme_.panel_bg_color);
     lv_style_set_anim_time(&more_page_base_, 0);
 
-    lv_style_set_radius(&more_page_switch_ind_, LVD_BORDER_RADIUS);
-    lv_style_set_bg_color(&more_page_switch_ind_, LVD_PANEL_BG_COLOR);
-    lv_style_set_radius(&more_page_switch_ind_checked_, LVD_BORDER_RADIUS);
-    lv_style_set_bg_color(&more_page_switch_ind_checked_, lv_color_lighten(LVD_BTN_ON_COLOR, LV_OPA_50));
+    lv_style_set_radius(&more_page_switch_ind_, theme_.radius);
+    lv_style_set_bg_color(&more_page_switch_ind_, theme_.panel_bg_color);
+    lv_style_set_radius(&more_page_switch_ind_checked_, theme_.radius);
+    lv_style_set_bg_color(&more_page_switch_ind_checked_, lv_color_lighten(theme_.btn_on_color, LV_OPA_50));
 
-    lv_style_set_radius(&more_page_switch_knob_, LVD_BORDER_RADIUS);
-    lv_style_set_bg_color(&more_page_switch_knob_, LVD_BTN_BG_COLOR);
-    lv_style_set_bg_color(&more_page_switch_knob_checked_, LVD_BTN_ON_COLOR);
+    lv_style_set_radius(&more_page_switch_knob_, theme_.radius);
+    lv_style_set_bg_color(&more_page_switch_knob_, theme_.btn_bg_color);
+    lv_style_set_bg_color(&more_page_switch_knob_checked_, theme_.btn_on_color);
 
-    lv_style_set_radius(&more_page_slider_ind_, LVD_BORDER_RADIUS);
-    lv_style_set_radius(&more_page_slider_knob_, LVD_BORDER_RADIUS);
-    lv_style_set_width(&more_page_slider_knob_, LVD_PADDING);
+    lv_style_set_radius(&more_page_slider_ind_, theme_.radius);
+    lv_style_set_radius(&more_page_slider_knob_, theme_.radius);
+    lv_style_set_width(&more_page_slider_knob_, theme_.padding);
 
-    lv_style_set_bg_color(&more_page_slider_ind_, lv_color_lighten(LVD_BTN_ON_COLOR, LV_OPA_50));
-    lv_style_set_bg_color(&more_page_slider_knob_, LVD_BTN_ON_COLOR);
+    lv_style_set_bg_color(&more_page_slider_ind_, lv_color_lighten(theme_.btn_on_color, LV_OPA_50));
+    lv_style_set_bg_color(&more_page_slider_knob_, theme_.btn_on_color);
 
     lv_style_set_transform_width(&more_page_slider_knob_, -40);
     lv_style_set_transform_height(&more_page_slider_knob_, -4);
 
-    lv_style_set_radius(&more_page_image_, LVD_BORDER_RADIUS);
-    lv_style_set_bg_color(&more_page_image_, LVD_PANEL_BG_COLOR);
-    lv_style_set_pad_all(&more_page_image_, LVD_PADDING);
+    lv_style_set_radius(&more_page_image_, theme_.radius);
+    lv_style_set_bg_color(&more_page_image_, theme_.panel_bg_color);
+    lv_style_set_pad_all(&more_page_image_, theme_.padding);
     lv_style_set_width(&more_page_image_, LV_SIZE_CONTENT);
     lv_style_set_height(&more_page_image_, LV_SIZE_CONTENT);
 }
@@ -1383,7 +1462,7 @@ void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
     auto* label = lv_label_create(parent);
     lv_obj_set_style_text_font(label, lv_theme_get_font_normal(parent), 0);
     lv_label_set_text(label, title.c_str());
-    lv_obj_set_style_text_color(label, LVD_TEXT_COLOR, 0);
+    lv_obj_set_style_text_color(label, theme_.text_color, 0);
 
     ESP_LOGD(TAG, "LvglDashboard::show_more_page features: %u", features.size());
     for (int i = 0; i < features.size(); i++) {
@@ -1404,7 +1483,7 @@ void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
             auto* icon = lv_label_create(cmp);
             lv_obj_set_style_text_font(icon, small_mdi_font->get_lv_font(), 0);
             lv_label_set_text(icon, icon_str.c_str());
-            lv_obj_set_style_text_color(icon, LVD_TEXT_COLOR, 0);
+            lv_obj_set_style_text_color(icon, theme_.text_color, 0);
             lv_obj_center(icon);
             lv_obj_add_event_cb(cmp, lvgl_event_listener_<MoreInfoPage>, LV_EVENT_VALUE_CHANGED, this);
         }
@@ -1417,7 +1496,7 @@ void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
             auto* icon = lv_label_create(cmp);
             lv_obj_set_style_text_font(icon, small_mdi_font->get_lv_font(), 0);
             lv_label_set_text(icon, "\U000F0425"); // toggle
-            lv_obj_set_style_text_color(icon, LVD_TEXT_COLOR, 0);
+            lv_obj_set_style_text_color(icon, theme_.text_color, 0);
             lv_obj_center(icon);
             lv_obj_add_style(cmp, &more_page_base_, 0);
             lv_obj_add_style(cmp, &more_page_switch_ind_, LV_PART_INDICATOR | LV_STATE_DEFAULT);
