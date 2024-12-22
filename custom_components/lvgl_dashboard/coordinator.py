@@ -463,7 +463,7 @@ class Coordinator(DataUpdateCoordinator):
         elif domain == "button":
             action = "button.press"
         if "action" in action_def:
-            action = action_def["action"]
+            action = self._g(action_def, "action")
         extra = self._g(action_def, "extra", {})
         
         _LOGGER.debug(f"async_execute_hass_action: action = {action}, entity = {id}, extra={extra}")
