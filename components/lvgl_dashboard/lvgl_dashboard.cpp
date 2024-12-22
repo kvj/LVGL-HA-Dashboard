@@ -348,7 +348,7 @@ void DashboardButton::set_side_icon(lv_obj_t* obj, JsonObject data) {
 }
 
 void DashboardButton::set_value(JsonObject data) {
-    ESP_LOGD(TAG, "DashboardButton::set_value: %d", lv_obj_get_child_cnt(this->root_));
+    ESP_LOGD(TAG, "DashboardButton::set_value: %lu", lv_obj_get_child_cnt(this->root_));
     JsonObject left = data["left"];
     JsonObject right = data["right"];
     this->set_side_icon(lv_obj_get_child(this->root_, 0), left);
