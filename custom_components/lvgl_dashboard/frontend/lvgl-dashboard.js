@@ -154,12 +154,14 @@ class SensorItem extends DashboardItem {
             el.style.gridColumn = "3";
             el.style.gridRow = "2";
             el.style.alignItems = "end";
+            el.style.marginInlineEnd = `${theme.padding}px`;
     
             const unit = el.appendChild(document.createElement("div"));
             unit.className = "small-text single-line";
             unit.textContent = obj["unit"];
             this.setTextColor(obj, unit);
         } else {
+            el.style.marginInlineEnd = `${theme.padding}px`;
             el.style.gridColumn = "1 / span 3";
         }
     }
@@ -479,9 +481,8 @@ class LVGLDashboard extends HTMLElement {
             display: contents;
         }        
         .main-container {
-            width: 100%;
-            max-width: ${mw}px;
-            aspect-ratio: ${mw}/${mh};
+            width: ${mw}px;
+            height: ${mh}px;
         }
         .panel-bg-color {
             background-color: ${this.theme.panel_bg_color};
@@ -510,6 +511,7 @@ class LVGLDashboard extends HTMLElement {
         }
         .item {
             margin: 0px;
+            padding: 0px;
         }
         .item:active {
             background-color: ${this.theme.btn_pressed_color};
