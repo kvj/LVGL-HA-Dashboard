@@ -455,7 +455,7 @@ class Coordinator(DataUpdateCoordinator):
         [domain, name] = id.split(".")
         action = "homeassistant.toggle"
         if domain == "script":
-            action = entity_id
+            action = id
         elif domain == "automation":
             action = "automation.trigger"
         elif domain == "scene":
