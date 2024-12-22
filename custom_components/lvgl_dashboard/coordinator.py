@@ -27,6 +27,7 @@ from homeassistant.const import (
 from .constants import (
     DOMAIN,
     CONF_DASHBOARD,
+    CONF_IS_BROWSER,
     TOGGLABLE_DOMAINS,
     SLIDER_DOMAINS,
     IMAGE_DOMAINS,
@@ -35,7 +36,7 @@ from .constants import (
 from .mdi_font.icon import icon_from_state
 
 from .mdi_font import GlyphProvider
-from .picture import bytes_to_565_ints, async_get_image_by_entity_id
+from .picture import bytes_to_565_ints, async_get_image_by_entity_id, bytes_to_scaled
 
 import collections.abc
 import logging
@@ -141,24 +142,35 @@ class Coordinator(DataUpdateCoordinator):
             return state.attributes.get("friendly_name", state.entity_id)
         return entity_id if entity_id else ""
     
-    def api_url(self, path: str) -> str:
-        url = network.get_url(self.hass, allow_ip=True, prefer_external=False)
-        return f"{url}{path}?ts={datetime.now().timestamp()}"
+    def browser_image_url(self, entity_id: str, scale: int) -> str:
+        return f"/api/lvgl_dashboard/image/{self._entry_id}/{entity_id}/{scale}?ts={datetime.now().timestamp()}"
+    
+    async def async_picture_by_entity_id(self, entity_id: str):
+        domain, _ = entity_id.split(".")
+        if domain == "camera":
+            image_ = await camera.async_get_image(self.hass, entity_id, width=800, height=800)
+            _LOGGER.debug(f"async_prepare_data: picture: {image_.content_type}, {len(image_.content)}")
+            return image_
+        if domain == "image":
+            image_ = await async_get_image_by_entity_id(self.hass, entity_id)
+            return image_
+        return None
+    
+    async def async_picture_by_entity_id_scaled(self, entity_id: str, scale: int):
+        try:
+            if image_ := await self.async_picture_by_entity_id(entity_id):
+                data = bytes_to_scaled(image_.content, scale)
+                return (data, image_.content_type)
+        except:
+            _LOGGER.exception(f"async_picture_from_state: error getting picture")
+        return (None, None)
     
     async def async_picture_from_state(self, entity_id: str | None, state, size: int):
-        # return (None, None)
-        domain, id = entity_id.split(".") if entity_id else ("", "")
         try:
-            if domain == "camera":
-                image_ = await camera.async_get_image(self.hass, entity_id, width=800, height=800)
-                _LOGGER.debug(f"async_prepare_data: picture: {image_.content_type}, {len(image_.content)}")
-                size, data = bytes_to_565_ints(image_.content, image_.content_type, size)
-                return (size, data)
-            if domain == "image":
-                image_ = await async_get_image_by_entity_id(self.hass, entity_id)
-                if image_:
-                    size_, data_ = bytes_to_565_ints(image_.content, image_.content_type, size)
-                    return (size_, data_)
+            if entity_id:
+                if image_ := await self.async_picture_by_entity_id(entity_id):
+                    size, data = bytes_to_565_ints(image_.content, image_.content_type, size)
+                    return (size, data)
         except:
             _LOGGER.exception(f"async_picture_from_state: error getting picture")
         return (None, None)
@@ -219,15 +231,17 @@ class Coordinator(DataUpdateCoordinator):
                 "col": self.color_from_state(state, item),
             }
         if layout == "picture":
-            size, data = await self.async_picture_from_state(
-                entity_id, state, 
-                self._g(item, "scale", PICTURE_DEF_SCALE_ITEM, state=state)
-            )
+            scale = self._g(item, "scale", PICTURE_DEF_SCALE_ITEM, state=state)
+            size, data = await self.async_picture_from_state(entity_id, state, scale)
             if size and data:
                 return {
                     "ctype": self._g(item, "ctype", "button"),
                     "col": self.color_from_state(state, item),
-                    "image": {"width": size[0], "height": size[1]}
+                    "image": {
+                        "width": size[0], 
+                        "height": size[1],
+                        "uri": self.browser_image_url(entity_id, scale) if self.is_browser else None,
+                    }
                 }
         if layout == "layout":
             items = []
@@ -382,17 +396,29 @@ class Coordinator(DataUpdateCoordinator):
         }
 
     def call_device_service(self, name: str, data: dict) -> bool:
+        if self.is_browser:
+            _LOGGER.debug(f"call_device_service: browser entry, emit event {name} with {data}")
+            self.hass.bus.async_fire("lvgl_dashboard_service_call", {
+                "config_entry_id": self._entry_id,
+                "name": name,
+                "data": data,
+            })
+            return
         if not self.is_device_connected():
             _LOGGER.debug(f"call_device_service: not connected")
             return False
         for _, service in self._entry_data.services.items():
             if service.name == name:
                 # _LOGGER.debug(f"call_device_service: call service {name} with {data}, spec: {service}")
+                # self.hass.async_add_executor_job(self._entry_data.client.execute_service, service, data)
                 self._entry_data.client.execute_service(service, data)
                 return True
+        _LOGGER.warning(f"call_device_service: service not found: {name}")
         return False
 
     def is_device_connected(self) -> bool:
+        if self.is_browser:
+            return True
         return True if self._entry_data and self._entry_data.available else False
     
     def _get_item_def(self, page: int, item: int) -> dict | None:
@@ -449,7 +475,8 @@ class Coordinator(DataUpdateCoordinator):
 
     async def async_send_show_page(self, index: int):
         self.call_device_service("show_page", {"page": index})
-        await self.async_send_values(page=index)
+        if not self.is_browser:
+            await self.async_send_values(page=index)
 
     async def async_send_hide_more_page(self):
         self.call_device_service("hide_more", {})
@@ -482,7 +509,7 @@ class Coordinator(DataUpdateCoordinator):
             visible = event.get("visible") == "1"
             changed = self.data.get("more_page", False) != visible
             await self._async_update_state({"more_page": visible})
-            if not visible and changed:
+            if not visible and changed and not self.is_browser:
                 await self.async_send_values(page=self.data.get("page", 0))
         if type_ in ("button", "long_button"):
             btns = self._dashboard.get("buttons", [])
@@ -545,6 +572,10 @@ class Coordinator(DataUpdateCoordinator):
     def load_options(self):
         self._config = self._entry.as_dict()["options"]
 
+    @property
+    def is_browser(self):
+        return self._config.get(CONF_IS_BROWSER, False) or self._config.get(CONF_DEVICE_ID) is None
+
     def _config_entry_by_device_id(self, device_id: str):
         if device := device_registry.async_get(self.hass).async_get(device_id):
             _LOGGER.debug(f"_config_entry_by_device_id: device = {device}")
@@ -555,8 +586,19 @@ class Coordinator(DataUpdateCoordinator):
                         return entry
         return None
     
+    async def async_handle_web_event(self, event: str, data: dict):
+        _LOGGER.debug(f"async_handle_web_event: {event}, {data}")
+        if event == "online":
+            return await self.async_send_dashboard()
+        if event in ("click", "long_click", "page", "more"):
+            return await self.async_handle_event(event, data)
+    
     async def async_load(self):
         self.load_options()
+        if self.is_browser:
+            _LOGGER.debug(f"async_load: browser entry: {self._config}")
+            self._on_config_entry_handler = None
+            return
         conf_entry = self._config_entry_by_device_id(self._config[CONF_DEVICE_ID])
         _LOGGER.debug(f"async_load: {self._config} {conf_entry}")
 

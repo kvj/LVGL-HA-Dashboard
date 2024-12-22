@@ -19,6 +19,7 @@ from homeassistant.helpers.schema_config_entry_flow import (
 from .constants import (
     DOMAIN,
     CONF_DASHBOARD,
+    CONF_IS_BROWSER,
 )
 
 import voluptuous as vol
@@ -32,7 +33,8 @@ OPTIONS_SCHEMA = vol.Schema({
 
 CONFIG_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): selector({"text": {}}),
-    vol.Required(CONF_DEVICE_ID): selector({"device": {"integration": "esphome"}}),
+    vol.Required(CONF_IS_BROWSER, default=False): selector({"boolean": {}}),
+    vol.Optional(CONF_DEVICE_ID): selector({"device": {"integration": "esphome"}}),
 }).extend(OPTIONS_SCHEMA.schema)
 
 async def _validate_options(step, user_input):

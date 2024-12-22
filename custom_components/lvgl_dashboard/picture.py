@@ -7,6 +7,14 @@ import io, logging, math, struct
 
 _LOGGER = logging.getLogger(__name__)
 
+def bytes_to_scaled(data: bytes, size: int) -> bytes:
+    with io.BytesIO(data) as f, io.BytesIO() as fout:
+        image = Image.open(f, formats=["JPEG", "PNG"])
+        image.thumbnail((size, size))
+        image.save(fout, image.format)
+        return fout.getvalue()
+
+
 def bytes_to_565_ints(data: bytes, content_type: str, size: int):
     with io.BytesIO(data) as f:
         image = Image.open(f, formats=["JPEG", "PNG"])
