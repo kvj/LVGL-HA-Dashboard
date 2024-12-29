@@ -120,6 +120,11 @@ sensor:
 external_components:
   - source: components
 
+binary_sensor:
+  - platform: lvgl_dashboard
+    component: touchscreen_
+    name: Touchscreen
+
 lvgl:
   touchscreens:
     - touchscreen_id: touchscreen_

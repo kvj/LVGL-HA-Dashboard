@@ -250,8 +250,11 @@ void DashboardButton::on_event(lv_event_t* event) {
     if (code == LV_EVENT_PRESSED) {
         lv_obj_add_state(this->line_, LV_STATE_PRESSED);
     }
+    if (code == LV_EVENT_LONG_PRESSED) {
+        lv_obj_add_state(this->line_, LV_STATE_USER_1);
+    }
     if (code == LV_EVENT_RELEASED) {
-        lv_obj_clear_state(this->line_, LV_STATE_PRESSED);
+        lv_obj_clear_state(this->line_, LV_STATE_PRESSED | LV_STATE_USER_1);
     }
     ESP_LOGD(TAG, "DashboardButton::on_event: %d", code);
 }
@@ -271,6 +274,7 @@ void DashboardButton::init(lv_obj_t* obj, bool init) {
         lv_style_init(&btn_style_pressed_);
         lv_style_init(&btn_line_style_normal_);
         lv_style_init(&btn_line_style_pressed_);
+        lv_style_init(&btn_line_style_long_pressed_);
         lv_style_init(&btn_line_style_checked_);
     }
     lv_style_set_pad_all(&btn_style_normal_, theme_.padding);
@@ -286,6 +290,7 @@ void DashboardButton::init(lv_obj_t* obj, bool init) {
     lv_style_set_height(&btn_line_style_normal_, theme_.switch_line_height);
 
     lv_style_set_bg_color(&btn_line_style_pressed_, theme_.switch_pressed_line_color);
+    lv_style_set_bg_color(&btn_line_style_long_pressed_, theme_.switch_long_pressed_line_color);
 
     lv_style_set_bg_color(&btn_line_style_checked_, theme_.switch_on_line_color);
 }
@@ -308,6 +313,7 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_add_style(this->root_, &btn_style_normal_, 0);
     lv_obj_add_style(this->root_, &btn_style_pressed_, LV_STATE_PRESSED);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_PRESSED, this);
+    lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_LONG_PRESSED, this);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_RELEASED, this);
     subscribe_to_tap_events_(this->root_, this);
 
@@ -322,6 +328,7 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_add_style(this->line_, &btn_line_style_normal_, 0);
     lv_obj_add_style(this->line_, &btn_line_style_checked_, LV_STATE_CHECKED);
     lv_obj_add_style(this->line_, &btn_line_style_pressed_, LV_STATE_PRESSED);
+    lv_obj_add_style(this->line_, &btn_line_style_long_pressed_, LV_STATE_PRESSED | LV_STATE_USER_1);
     lv_obj_set_flex_grow(this->line_, 1);
 
     lv_obj_add_flag(lv_label_create(this->root_), LV_OBJ_FLAG_HIDDEN);
@@ -331,9 +338,6 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_set_flex_align(this->root_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     lv_obj_set_style_pad_column(this->root_, theme_.padding, 0);
 
-    // switch_->add_on_state_callback([this](bool state) {
-    //     this->update_state(state);
-    // });
     this->update_state(switch_->state);
 }
 
@@ -1346,7 +1350,13 @@ void LvglDashboard::on_tap_event(lv_event_code_t code, lv_event_t* event) {
     }
     if (lv_event_get_target(event) == this->dashboard_btn_) {
         ESP_LOGD(TAG, "LvglDashboard::on_event: dashboard_btn_ click %d", this->buttons_visible());
-        this->show_buttons(!this->buttons_visible());
+        if (code == LV_EVENT_LONG_PRESSED) {
+            esphome::delay(100);
+            App.safe_reboot();
+        }
+        if (code == LV_EVENT_SHORT_CLICKED) {
+            this->show_buttons(!this->buttons_visible());
+        }
     }
 }
 
@@ -1400,7 +1410,10 @@ void LvglDashboard::service_set_data_more(int32_t* data, int size, int offset, i
 
 void LvglDashboard::service_play_rtttl(std::string song) {
     if (this->rtttl_ != 0) {
+        ESP_LOGD(TAG, "Rtttl play: %s", song.c_str());
         this->rtttl_->play(song);
+    } else {
+        ESP_LOGW(TAG, "Rtttl play: not configured");
     }
 }
 

@@ -12,9 +12,26 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/rtttl/rtttl.h"
-
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 namespace esphome {
 namespace lvgl_dashboard {
+
+#ifdef USE_BINARY_SENSOR
+class DashboardComponent : public esphome::Component, public esphome::binary_sensor::BinarySensorInitiallyOff {
+    protected:
+        esphome::Component* component_ = 0;
+
+    public:
+        void setup() override {
+            ESP_LOGI("lvgl_dashboard", "DashboardComponent::setup(): %d", this->component_->is_failed());
+            this->publish_state(this->component_->is_failed());
+        }
+        float get_setup_priority() const override { return esphome::setup_priority::BEFORE_CONNECTION; }
+        void set_component(esphome::Component* component) { this->component_ = component; }
+};
+#endif
 
 #ifndef LVD_BG_COLOR
     #define LVD_BG_COLOR lv_color_black()
@@ -49,6 +66,9 @@ namespace lvgl_dashboard {
 #ifndef LVD_SWITCH_PRESSED_LINE_COLOR
     #define LVD_SWITCH_PRESSED_LINE_COLOR lv_palette_main(LV_PALETTE_BLUE)
 #endif
+#ifndef LVD_SWITCH_LONG_PRESSED_LINE_COLOR
+    #define LVD_SWITCH_LONG_PRESSED_LINE_COLOR lv_palette_main(LV_PALETTE_RED)
+#endif
 #ifndef LVD_SWITCH_ON_LINE_COLOR
     #define LVD_SWITCH_ON_LINE_COLOR lv_palette_main(LV_PALETTE_ORANGE)
 #endif
@@ -66,6 +86,7 @@ typedef struct {
     lv_color_t btn_on_color;
     lv_color_t switch_line_color;
     lv_color_t switch_pressed_line_color;
+    lv_color_t switch_long_pressed_line_color;
     lv_color_t switch_on_line_color;
     lv_coord_t switch_line_height;
     lv_coord_t padding;
@@ -82,6 +103,7 @@ static ThemeDef boot_theme_ = {
     .btn_on_color = LVD_BTN_ON_COLOR,
     .switch_line_color = LVD_SWITCH_LINE_COLOR,
     .switch_pressed_line_color = LVD_SWITCH_PRESSED_LINE_COLOR,
+    .switch_long_pressed_line_color = LVD_SWITCH_LONG_PRESSED_LINE_COLOR,
     .switch_on_line_color = LVD_SWITCH_ON_LINE_COLOR,
     .switch_line_height = LVD_SWITCH_LINE_HEIGHT,
     .padding = LVD_PADDING,
@@ -260,6 +282,7 @@ static lv_style_t btn_style_pressed_;
 static lv_style_t btn_line_style_normal_;
 static lv_style_t btn_line_style_checked_;
 static lv_style_t btn_line_style_pressed_;
+static lv_style_t btn_line_style_long_pressed_;
 class DashboardButton {
     protected:
         lv_obj_t* root_ = 0;
