@@ -30,6 +30,8 @@ CONF_BACKLIGHT = "backlight"
 CONF_DESIGN = "design"
 CONF_RTTTL = "rtttl"
 CONF_DASHBOARD_RESET = "dashboard_reset"
+CONF_VERTICAL = "vertical"
+CONF_COMPONENTS = "components"
 
 DASHBOARD_RESET_DEF = 10
 
@@ -48,7 +50,9 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_DESIGN): cv.Schema({}, extra=cv.ALLOW_EXTRA),
         cv.Optional(CONF_BACKLIGHT): cv.use_id(switch.Switch),
         cv.Optional(CONF_RTTTL): cv.use_id(rtttl.Rtttl),
+        cv.Optional(CONF_VERTICAL, default=False): cv.boolean,
         cv.Optional(CONF_DASHBOARD_RESET, default=DASHBOARD_RESET_DEF): cv.positive_int,
+        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(cv.use_id(cg.Component)),
     })
     .extend(cv.COMPONENT_SCHEMA)
 )
@@ -69,6 +73,7 @@ async def to_code(config):
     lvgl.defines.add_define("LV_FONT_MONTSERRAT_12")
     lvgl.defines.add_define("LV_FONT_MONTSERRAT_28")
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_vertical(config[CONF_VERTICAL]))
     cg.add(var.set_config(config[CONF_WIDTH], config[CONF_HEIGHT]))
     cg.add(var.set_lvgl(await cg.get_variable(config[CONF_LVGL])))
     cg.add(var.set_api_server(await cg.get_variable(config[CONF_API])))
@@ -89,4 +94,6 @@ async def to_code(config):
     if CONF_DESIGN in config:
         for key, value in config[CONF_DESIGN].items():
             cg.add_define(f"LVD_{key.upper()}", cg.RawExpression(value))
+    for cmp in config[CONF_COMPONENTS]:
+        cg.add(var.add_component(await cg.get_variable(cmp)))
     await cg.register_component(var, config)

@@ -249,12 +249,14 @@ void DashboardButton::on_event(lv_event_t* event) {
     auto code = lv_event_get_code(event);
     if (code == LV_EVENT_PRESSED) {
         lv_obj_add_state(this->line_, LV_STATE_PRESSED);
+        lv_obj_add_state(this->wrapper_, LV_STATE_PRESSED);
     }
     if (code == LV_EVENT_LONG_PRESSED) {
         lv_obj_add_state(this->line_, LV_STATE_USER_1);
     }
     if (code == LV_EVENT_RELEASED) {
         lv_obj_clear_state(this->line_, LV_STATE_PRESSED | LV_STATE_USER_1);
+        lv_obj_clear_state(this->wrapper_, LV_STATE_PRESSED);
     }
     ESP_LOGD(TAG, "DashboardButton::on_event: %d", code);
 }
@@ -271,17 +273,19 @@ void DashboardButton::on_tap_event(lv_event_code_t code, lv_event_t* event) {
 void DashboardButton::init(lv_obj_t* obj, bool init) {
     if (init) {
         lv_style_init(&btn_style_normal_);
-        lv_style_init(&btn_style_pressed_);
+        lv_style_init(&btn_wrapper_style_normal_);
+        lv_style_init(&btn_wrapper_style_pressed_);
         lv_style_init(&btn_line_style_normal_);
         lv_style_init(&btn_line_style_pressed_);
         lv_style_init(&btn_line_style_long_pressed_);
         lv_style_init(&btn_line_style_checked_);
     }
-    lv_style_set_pad_all(&btn_style_normal_, theme_.padding);
-    lv_style_set_radius(&btn_style_normal_, theme_.radius);
-
-    lv_style_set_bg_color(&btn_style_pressed_, theme_.btn_pressed_color);
-    lv_style_set_bg_opa(&btn_style_pressed_, LV_OPA_50);
+    lv_style_set_radius(&btn_wrapper_style_normal_, theme_.radius);
+    lv_style_set_pad_all(&btn_wrapper_style_normal_, theme_.padding);
+    lv_style_set_width(&btn_wrapper_style_normal_, lv_pct(100));
+    lv_style_set_height(&btn_wrapper_style_normal_, theme_.switch_height);
+    lv_style_set_bg_color(&btn_wrapper_style_pressed_, theme_.btn_pressed_color);
+    lv_style_set_bg_opa(&btn_wrapper_style_pressed_, LV_OPA_50);
 
     lv_style_set_bg_opa(&btn_line_style_normal_, LV_OPA_COVER);
     lv_style_set_bg_color(&btn_line_style_normal_, theme_.switch_line_color);
@@ -311,15 +315,22 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_set_size(this->root_, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_remove_style_all(this->root_);
     lv_obj_add_style(this->root_, &btn_style_normal_, 0);
-    lv_obj_add_style(this->root_, &btn_style_pressed_, LV_STATE_PRESSED);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_PRESSED, this);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_LONG_PRESSED, this);
     lv_obj_add_event_cb(this->root_, lvgl_event_listener_<DashboardButton>, LV_EVENT_RELEASED, this);
     subscribe_to_tap_events_(this->root_, this);
 
-    lv_obj_add_flag(lv_label_create(this->root_), LV_OBJ_FLAG_HIDDEN);
 
-    this->line_ = lv_obj_create(this->root_);
+    this->wrapper_ = lv_obj_create(this->root_);
+    lv_obj_remove_style_all(this->wrapper_);
+    lv_obj_add_style(this->wrapper_, &btn_wrapper_style_normal_, 0);
+    lv_obj_add_style(this->wrapper_, &btn_wrapper_style_pressed_, LV_STATE_PRESSED);
+    lv_obj_align(this->wrapper_, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_add_flag(this->wrapper_, LV_OBJ_FLAG_EVENT_BUBBLE);
+
+    lv_obj_add_flag(lv_label_create(this->wrapper_), LV_OBJ_FLAG_HIDDEN);
+
+    this->line_ = lv_obj_create(this->wrapper_);
     lv_obj_remove_style_all(this->line_);
     lv_obj_align(this->line_, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     // lv_obj_set_size(this->line_, lv_pct(100), 10);
@@ -331,12 +342,12 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_add_style(this->line_, &btn_line_style_long_pressed_, LV_STATE_PRESSED | LV_STATE_USER_1);
     lv_obj_set_flex_grow(this->line_, 1);
 
-    lv_obj_add_flag(lv_label_create(this->root_), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(lv_label_create(this->wrapper_), LV_OBJ_FLAG_HIDDEN);
 
-    lv_obj_set_layout(this->root_, LV_LAYOUT_FLEX);
-    lv_obj_set_flex_flow(this->root_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(this->root_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
-    lv_obj_set_style_pad_column(this->root_, theme_.padding, 0);
+    lv_obj_set_layout(this->wrapper_, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_flow(this->wrapper_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(this->wrapper_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_style_pad_column(this->wrapper_, theme_.padding, 0);
 
     this->update_state(switch_->state);
 }
@@ -355,8 +366,8 @@ void DashboardButton::set_value(JsonObject data) {
     ESP_LOGD(TAG, "DashboardButton::set_value: %lu", lv_obj_get_child_cnt(this->root_));
     JsonObject left = data["left"];
     JsonObject right = data["right"];
-    this->set_side_icon(lv_obj_get_child(this->root_, 0), left);
-    this->set_side_icon(lv_obj_get_child(this->root_, 2), right);
+    this->set_side_icon(lv_obj_get_child(this->wrapper_, 0), left);
+    this->set_side_icon(lv_obj_get_child(this->wrapper_, 2), right);
 }
 
 void DashboardButton::destroy() {
@@ -721,8 +732,13 @@ void DashboardPage::setup(lv_obj_t* parent, int page, LvglItemEventListener *lis
     lv_obj_remove_style_all(this->root_);
     lv_obj_set_size(this->root_, lv_pct(100), lv_pct(100));
     ESP_LOGD(TAG, "DashboardPage::setup rows: %d, cols: %d", this->def_->rows, this->def_->cols);
-    this->row_dsc_[this->def_->rows] = LV_GRID_TEMPLATE_LAST;
-    this->col_dsc_[this->def_->cols] = LV_GRID_TEMPLATE_LAST;
+    if (this->def_->vertical) {
+        this->row_dsc_[this->def_->cols] = LV_GRID_TEMPLATE_LAST;
+        this->col_dsc_[this->def_->rows] = LV_GRID_TEMPLATE_LAST;
+    } else {
+        this->row_dsc_[this->def_->rows] = LV_GRID_TEMPLATE_LAST;
+        this->col_dsc_[this->def_->cols] = LV_GRID_TEMPLATE_LAST;
+    }
     lv_obj_set_style_grid_row_dsc_array(this->root_, this->row_dsc_, 0);
     lv_obj_set_style_grid_column_dsc_array(this->root_, this->col_dsc_, 0);
     lv_obj_set_layout(this->root_, LV_LAYOUT_GRID);
@@ -735,10 +751,17 @@ void DashboardPage::setup(lv_obj_t* parent, int page, LvglItemEventListener *lis
             this->items_.push_back(item);
             item->set_definition(&this->def_->items[i]);
             item->setup(this->root_);
-            lv_obj_set_grid_cell(item->get_lv_obj(), 
-                LV_GRID_ALIGN_STRETCH, item_def.col, item_def.cols, 
-                LV_GRID_ALIGN_STRETCH, item_def.row, item_def.rows
-            );
+            if (this->def_->vertical) {
+                lv_obj_set_grid_cell(item->get_lv_obj(), 
+                    LV_GRID_ALIGN_STRETCH, item_def.row, item_def.cols, 
+                    LV_GRID_ALIGN_STRETCH, item_def.col, item_def.rows
+                );
+            } else {
+                lv_obj_set_grid_cell(item->get_lv_obj(), 
+                    LV_GRID_ALIGN_STRETCH, item_def.col, item_def.cols, 
+                    LV_GRID_ALIGN_STRETCH, item_def.row, item_def.rows
+                );
+            }
             item->set_listener(page, i, listener);
         }
     }
@@ -805,7 +828,7 @@ void LvglDashboard::init(lv_obj_t* obj, bool init) {
 
     lv_style_set_bg_color(&top_style_collapsed_, theme_.panel_bg_color);
     lv_style_set_bg_opa(&top_style_collapsed_, LV_OPA_COVER);
-    lv_style_set_height(&top_style_collapsed_, 35 + 4 * theme_.padding);
+    lv_style_set_height(&top_style_collapsed_, theme_.switch_height);
 
     lv_style_set_radius(&root_btn_style_normal_, theme_.radius);
     lv_style_set_pad_all(&root_btn_style_normal_, theme_.padding);
@@ -889,7 +912,11 @@ lv_obj_t* LvglDashboard::create_sub_page(lv_obj_t* root) {
 
     auto* dashboard_ = lv_obj_create(root);
     lv_obj_remove_style_all(dashboard_);
-    lv_obj_set_size(dashboard_, this->width_, this->height_);
+    if (this->vertical_) {
+        lv_obj_set_size(dashboard_, this->height_, this->width_);
+    } else {
+        lv_obj_set_size(dashboard_, this->width_, this->height_);
+    }
     lv_obj_set_grid_cell(dashboard_, LV_GRID_ALIGN_CENTER, 1, 1, LV_GRID_ALIGN_START, 0, 1);
 
     return root;
@@ -901,8 +928,13 @@ lv_obj_t* LvglDashboard::create_more_page(lv_obj_t* root) {
     static lv_coord_t col_dsc_[3] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
     lv_obj_remove_style_all(root);
-    lv_obj_set_style_grid_row_dsc_array(root, row_dsc_, 0);
-    lv_obj_set_style_grid_column_dsc_array(root, col_dsc_, 0);    
+    if (this->vertical_) {
+        lv_obj_set_style_grid_row_dsc_array(root, col_dsc_, 0);
+        lv_obj_set_style_grid_column_dsc_array(root, row_dsc_, 0);    
+    }else {
+        lv_obj_set_style_grid_row_dsc_array(root, row_dsc_, 0);
+        lv_obj_set_style_grid_column_dsc_array(root, col_dsc_, 0);    
+    }
     lv_obj_set_layout(root, LV_LAYOUT_GRID);
 
     lv_obj_add_style(root, &sub_page_style_, 0);
@@ -913,7 +945,11 @@ lv_obj_t* LvglDashboard::create_more_page(lv_obj_t* root) {
     auto* dashboard_ = lv_obj_create(root);
     lv_obj_remove_style_all(dashboard_);
     lv_obj_set_size(dashboard_, this->width_, this->height_);
-    lv_obj_set_grid_cell(dashboard_, LV_GRID_ALIGN_CENTER, 1, 1, LV_GRID_ALIGN_START, 0, 1);
+    if (this->vertical_) {
+        lv_obj_set_grid_cell(dashboard_, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_START, 1, 1);
+    } else {
+        lv_obj_set_grid_cell(dashboard_, LV_GRID_ALIGN_CENTER, 1, 1, LV_GRID_ALIGN_START, 0, 1);
+    }
 
     lv_obj_set_layout(dashboard_, LV_LAYOUT_FLEX);
     lv_obj_set_flex_flow(dashboard_, LV_FLEX_FLOW_COLUMN);
@@ -934,7 +970,10 @@ lv_obj_t* LvglDashboard::create_root_page(lv_obj_t* root) {
     lv_obj_add_style(root, &root_page_style_, 0);
     auto* dashboard_ = lv_obj_create(root);
     lv_obj_remove_style_all(dashboard_);
-    lv_obj_set_size(dashboard_, this->width_, this->height_);
+    if (this->vertical_)
+        lv_obj_set_size(dashboard_, this->height_, this->width_);
+    else
+        lv_obj_set_size(dashboard_, this->width_, this->height_);
     lv_obj_set_grid_cell(dashboard_, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_START, 0, 1);
 
     return root;
@@ -976,8 +1015,7 @@ lv_obj_t* LvglDashboard::create_buttons(lv_obj_t* root) {
 }
 
 void LvglDashboard::setup() {
- 
-    this->page_ = lv_scr_act();
+     this->page_ = lv_scr_act();
 
     // Cleanup
     lv_obj_clean(this->page_);
@@ -1029,9 +1067,18 @@ void LvglDashboard::setup() {
             resp->data.push_back(entry__);
         });
     });
-
+    default_page_.vertical = this->vertical_;
     this->set_pages(&default_page_, 1);
     this->render_page(0);
+
+    for (auto entry : this->components_) {
+        if (entry->is_failed()) {
+            ESP_LOGW(TAG, "At least one component has failed, rebooting: [%s]", entry->get_component_source());
+            esphome::delay(100);
+            App.safe_reboot();
+            return;
+        }
+    }
 }
 
 bool LvglDashboard::buttons_visible() {
@@ -1208,7 +1255,7 @@ void LvglDashboard::service_set_pages(std::vector<std::string> pages, int page) 
             // Make PageDef
             int pcols = obj["cols"];
             int prows = obj["rows"];
-            PageDef page = {.cols = pcols, .rows = prows};
+            PageDef page = {.cols = pcols, .rows = prows, .vertical = this->vertical_};
             JsonArray items = obj["items"];
             int items_size = 0;
             int col = 0;

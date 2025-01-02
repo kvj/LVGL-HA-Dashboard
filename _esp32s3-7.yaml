@@ -54,6 +54,10 @@ touchscreen:
   interrupt_pin: 4
   i2c_id: bus_a
   id: touchscreen_
+  transform:
+    swap_xy: ${ts_swap_xy}
+    mirror_x: ${ts_mirror_x}
+    mirror_y: ${ts_mirror_y}
 
 i2c:
   - sda: 8
@@ -66,6 +70,7 @@ display:
   - platform: rpi_dpi_rgb
     update_interval: never
     auto_clear_enabled: false
+    rotation: ${display_rotation}
     color_order: RGB
     pclk_frequency: 16MHz
     dimensions:

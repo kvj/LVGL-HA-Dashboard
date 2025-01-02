@@ -231,14 +231,15 @@ const itemMap = {
 
 class DashboardPage extends EventTarget {
 
-    constructor(obj, index, theme) {
+    constructor(obj, index, theme, vertical) {
         super();
         this.index = index;
         this.root = document.createElement("div");
-        this.dashboardEl_ = this.createDashboard(obj.rows, obj.cols, obj.items, theme);
+        this.dashboardEl_ = this.createDashboard(obj.rows, obj.cols, obj.items, theme, vertical);
         if (index > 0) {
             const body = this.root.appendChild(document.createElement("div"));
             body.className = "sub-page";
+            if (vertical) body.classList.add("vertical");
             const backBtn = body.appendChild(document.createElement("button"));
             backBtn.className = "item padding radius btn-bg-color";
             createIconEl(backBtn, "arrow-left", 50);
@@ -258,10 +259,10 @@ class DashboardPage extends EventTarget {
         });
     }
 
-    createDashboard(rows, cols, items, theme) {
+    createDashboard(rows, cols, items, theme, vertical) {
         const root = document.createElement("div");
         root.style.display = "grid";
-        root.style.gridTemplate = `repeat(${rows}, 1fr) / repeat(${cols}, 1fr)`;
+        root.style.gridTemplate = `repeat(${vertical? cols: rows}, 1fr) / repeat(${vertical? rows: cols}, 1fr)`;
         root.style.gap = `${theme.padding}px`;
 
         let col = 0;
@@ -279,8 +280,10 @@ class DashboardPage extends EventTarget {
                 this.listenToEvents(i, item_);
                 this.items.push(item_);
                 const btn = item_.element();
-                btn.style.gridColumn = cols_ > 1? `${col + 1} / span ${cols_}`: `${col + 1}`;
-                btn.style.gridRow = rows_ > 1? `${row + 1} / span ${rows_}`: `${row + 1}`;
+                const colDef = cols_ > 1? `${(vertical? row: col) + 1} / span ${cols_}`: `${(vertical? row: col) + 1}`;
+                const rowDef = rows_ > 1? `${(vertical? col: row) + 1} / span ${rows_}`: `${(vertical? col: row) + 1}`;
+                btn.style.gridColumn = colDef;
+                btn.style.gridRow = rowDef;
                 root.appendChild(btn);
             } else {
                 console.log(`DashboardPage::constructor: unsupported layout:`, item);
@@ -373,7 +376,7 @@ class LVGLDashboard extends HTMLElement {
             page.destroy();
         });
         this.pages = objects.map((item, index) => {
-            return new DashboardPage(item, index, this.theme);
+            return new DashboardPage(item, index, this.theme, this.config_["vertical"] == true);
         });
         this.root.innerHTML = ``;
         
@@ -476,6 +479,9 @@ class LVGLDashboard extends HTMLElement {
             align-items: start;
             flex-direction: row;
             gap: ${this.theme.padding}px;
+        }
+        .sub-page.vertical {
+            flex-direction: column;
         }
         .contents {
             display: contents;

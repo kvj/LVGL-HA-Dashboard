@@ -75,6 +75,12 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
 #ifndef LVD_SWITCH_LINE_HEIGHT
     #define LVD_SWITCH_LINE_HEIGHT 7
 #endif
+#ifndef LVD_SWITCH_HEIGHT_HOR
+    #define LVD_SWITCH_HEIGHT_HOR 57
+#endif
+#ifndef LVD_SWITCH_HEIGHT_VERT
+    #define LVD_SWITCH_HEIGHT_VERT 82
+#endif
 
 typedef struct {
     lv_color_t text_color;
@@ -89,6 +95,7 @@ typedef struct {
     lv_color_t switch_long_pressed_line_color;
     lv_color_t switch_on_line_color;
     lv_coord_t switch_line_height;
+    lv_coord_t switch_height;
     lv_coord_t padding;
     lv_coord_t radius;
 } ThemeDef;
@@ -106,6 +113,7 @@ static ThemeDef boot_theme_ = {
     .switch_long_pressed_line_color = LVD_SWITCH_LONG_PRESSED_LINE_COLOR,
     .switch_on_line_color = LVD_SWITCH_ON_LINE_COLOR,
     .switch_line_height = LVD_SWITCH_LINE_HEIGHT,
+    .switch_height = LVD_SWITCH_HEIGHT_HOR,
     .padding = LVD_PADDING,
     .radius = LVD_BORDER_RADIUS,
 };
@@ -130,6 +138,7 @@ typedef struct {
     std::string title;
     int cols;
     int rows;
+    bool vertical;
     ItemDef items[32];
     int items_size;
 } PageDef;
@@ -278,7 +287,8 @@ class ImageItem : public DashboardItem, public WithDataBuffer {
 };
 
 static lv_style_t btn_style_normal_;
-static lv_style_t btn_style_pressed_;
+static lv_style_t btn_wrapper_style_normal_;
+static lv_style_t btn_wrapper_style_pressed_;
 static lv_style_t btn_line_style_normal_;
 static lv_style_t btn_line_style_checked_;
 static lv_style_t btn_line_style_pressed_;
@@ -286,6 +296,7 @@ static lv_style_t btn_line_style_long_pressed_;
 class DashboardButton {
     protected:
         lv_obj_t* root_ = 0;
+        lv_obj_t* wrapper_ = 0;
         lv_obj_t* line_ = 0;
         esphome::switch_::Switch* switch_ = 0;
 
@@ -318,7 +329,8 @@ class DashboardPage {
 
         std::vector<DashboardItem*> items_ = {};
 
-        lv_coord_t row_dsc_[5] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
+        lv_coord_t row_dsc_[9] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), 
+                                 LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
         lv_coord_t col_dsc_[9] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), 
                                  LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
@@ -388,6 +400,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         esphome::api::APIServer* api_server_ = 0;
 
         std::vector<esphome::switch_::Switch*> switches_ = {};
+        std::vector<esphome::Component*> components_ = {};
         esphome::switch_::Switch* backlight_ = 0;
         esphome::rtttl::Rtttl* rtttl_ = 0;
 
@@ -411,6 +424,8 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         
         int width_ = 0;
         int height_ = 0;
+
+        bool vertical_ = false;
 
         int page_no_ = 0;
         uint16_t dashboard_timeout_ = 0;
@@ -459,9 +474,15 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
             this->width_ = width;
             this->height_ = height;
         }
+        void set_vertical(bool vertical) {
+            this->vertical_ = vertical;
+            auto switch_height = vertical? LVD_SWITCH_HEIGHT_VERT: LVD_SWITCH_HEIGHT_HOR;
+            boot_theme_.switch_height = theme_.switch_height = switch_height;
+        }
         void set_backlight(esphome::switch_::Switch* backlight) { this->backlight_ = backlight; }
         void set_rtttl(esphome::rtttl::Rtttl* rtttl) { this->rtttl_ = rtttl; }
         void set_dashboard_reset_timeout(uint16_t timeout) { this->dashboard_timeout_ = timeout; }
+        void add_component(esphome::Component* component) { this->components_.push_back(component); }
         void setup() override;
         void loop() override;
 

@@ -16,8 +16,10 @@ display:
     auto_clear_enabled: false
     update_interval: never
     dimensions:
-      width: 820
+      width: 800
       height: 480
+      # width: 480
+      # height: 820
 
 time:
   - platform: host
@@ -63,7 +65,10 @@ lvgl_dashboard:
   large_font: large_font_
   width: 740
   height: 360
+  # vertical: yes
   switches:
     - sw_0
     - sw_1
   backlight: backlight_
+  components:
+    - sw_0
