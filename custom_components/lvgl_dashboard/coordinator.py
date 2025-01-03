@@ -282,7 +282,10 @@ class Coordinator(DataUpdateCoordinator):
                     })
 
     async def async_prepare_button(self, item: dict):
-        result = {}
+        result = {
+            "clk": self._g(item, "click_sound", def_=False),
+            "lclk": self._g(item, "long_click_sound", def_=False),
+        }
         for key in ("left", "right"):
             if key in item and "icon" in item[key]:
                 result[key] = {

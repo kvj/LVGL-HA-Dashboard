@@ -362,12 +362,21 @@ void DashboardButton::set_side_icon(lv_obj_t* obj, JsonObject data) {
     }
 }
 
+static std::string parse_rtttl(JsonVariant value, std::string default_value) {
+    if (value.isNull()) return "";
+    if (value.is<bool>() && (value.as<bool>() == true)) return default_value;
+    if (value.is<bool>() && (value.as<bool>() == false)) return "";
+    return value.as<std::string>();
+}
+
 void DashboardButton::set_value(JsonObject data) {
     ESP_LOGD(TAG, "DashboardButton::set_value: %lu", lv_obj_get_child_cnt(this->root_));
     JsonObject left = data["left"];
     JsonObject right = data["right"];
     this->set_side_icon(lv_obj_get_child(this->wrapper_, 0), left);
     this->set_side_icon(lv_obj_get_child(this->wrapper_, 2), right);
+    this->click_rtttl = parse_rtttl(data["clk"], LVD_SWITCH_CLICK_RTTTL);
+    this->long_click_rtttl = parse_rtttl(data["lclk"], LVD_SWITCH_LONG_CLICK_RTTTL);
 }
 
 void DashboardButton::destroy() {
@@ -1429,10 +1438,14 @@ bool LvglDashboard::on_button(int index, lv_event_code_t code) {
         return true;
     }
     if (code == LV_EVENT_SHORT_CLICKED) {
+        if (this->button_objs_[index]->click_rtttl != "") 
+            this->service_play_rtttl(this->button_objs_[index]->click_rtttl);
         this->send_event(-1, index, "button");
         return false;
     }
     if (code == LV_EVENT_LONG_PRESSED) {
+        if (this->button_objs_[index]->long_click_rtttl != "") 
+            this->service_play_rtttl(this->button_objs_[index]->long_click_rtttl);
         this->send_event(-1, index, "long_button");
         return false;
     }
@@ -1460,7 +1473,7 @@ void LvglDashboard::service_play_rtttl(std::string song) {
         ESP_LOGD(TAG, "Rtttl play: %s", song.c_str());
         this->rtttl_->play(song);
     } else {
-        ESP_LOGW(TAG, "Rtttl play: not configured");
+        ESP_LOGW(TAG, "Rtttl play: not configured (%s)", song.c_str());
     }
 }
 

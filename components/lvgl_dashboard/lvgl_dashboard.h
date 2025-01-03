@@ -81,6 +81,12 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
 #ifndef LVD_SWITCH_HEIGHT_VERT
     #define LVD_SWITCH_HEIGHT_VERT 82
 #endif
+#ifndef LVD_SWITCH_CLICK_RTTTL
+    #define LVD_SWITCH_CLICK_RTTTL "click:d=64,o=4,b=120:d"
+#endif
+#ifndef LVD_SWITCH_LONG_CLICK_RTTTL
+    #define LVD_SWITCH_LONG_CLICK_RTTTL "click:d=64,o=4,b=120:a"
+#endif
 
 typedef struct {
     lv_color_t text_color;
@@ -300,12 +306,14 @@ class DashboardButton {
         lv_obj_t* line_ = 0;
         esphome::switch_::Switch* switch_ = 0;
 
-
         DashboardButtonListenerDef listener_{.listener = 0};
 
         void set_side_icon(lv_obj_t* obj, JsonObject data);
 
     public:
+        std::string click_rtttl = LVD_SWITCH_CLICK_RTTTL;
+        std::string long_click_rtttl = LVD_SWITCH_LONG_CLICK_RTTTL;
+
         static void init(lv_obj_t* obj, bool init);
         void setup(lv_obj_t* root, esphome::switch_::Switch* switch_);
         void destroy();
