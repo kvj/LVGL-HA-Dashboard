@@ -478,8 +478,6 @@ class Coordinator(DataUpdateCoordinator):
 
     async def async_send_show_page(self, index: int):
         self.call_device_service("show_page", {"page": index})
-        if not self.is_browser:
-            await self.async_send_values(page=index)
 
     async def async_send_hide_more_page(self):
         self.call_device_service("hide_more", {})

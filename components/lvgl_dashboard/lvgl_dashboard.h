@@ -43,7 +43,7 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
     #define LVD_TEXT_ON_COLOR lv_color_black()
 #endif
 #ifndef LVD_PADDING
-    #define LVD_PADDING 8
+    #define LVD_PADDING 5
 #endif
 #ifndef LVD_BORDER_RADIUS
     #define LVD_BORDER_RADIUS 7
@@ -76,10 +76,10 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
     #define LVD_SWITCH_LINE_HEIGHT 7
 #endif
 #ifndef LVD_SWITCH_HEIGHT_HOR
-    #define LVD_SWITCH_HEIGHT_HOR 57
+    #define LVD_SWITCH_HEIGHT_HOR 82
 #endif
 #ifndef LVD_SWITCH_HEIGHT_VERT
-    #define LVD_SWITCH_HEIGHT_VERT 82
+    #define LVD_SWITCH_HEIGHT_VERT 45
 #endif
 #ifndef LVD_SWITCH_CLICK_RTTTL
     #define LVD_SWITCH_CLICK_RTTTL "click:d=64,o=4,b=120:d"
@@ -89,6 +89,10 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
 #endif
 
 typedef struct {
+    lv_coord_t width;
+    lv_coord_t height;
+    bool vertical;
+
     lv_color_t text_color;
     lv_color_t bg_color;
     lv_color_t text_on_color;
@@ -105,29 +109,6 @@ typedef struct {
     lv_coord_t padding;
     lv_coord_t radius;
 } ThemeDef;
-
-static ThemeDef boot_theme_ = {
-    .text_color = LVD_TEXT_COLOR,
-    .bg_color = LVD_BG_COLOR,
-    .text_on_color = LVD_TEXT_ON_COLOR,
-    .panel_bg_color = LVD_PANEL_BG_COLOR,
-    .btn_bg_color = LVD_BTN_BG_COLOR,
-    .btn_pressed_color = LVD_BTN_PRESSED_COLOR,
-    .btn_on_color = LVD_BTN_ON_COLOR,
-    .switch_line_color = LVD_SWITCH_LINE_COLOR,
-    .switch_pressed_line_color = LVD_SWITCH_PRESSED_LINE_COLOR,
-    .switch_long_pressed_line_color = LVD_SWITCH_LONG_PRESSED_LINE_COLOR,
-    .switch_on_line_color = LVD_SWITCH_ON_LINE_COLOR,
-    .switch_line_height = LVD_SWITCH_LINE_HEIGHT,
-    .switch_height = LVD_SWITCH_HEIGHT_HOR,
-    .padding = LVD_PADDING,
-    .radius = LVD_BORDER_RADIUS,
-};
-
-static ThemeDef theme_ = boot_theme_;
-
-static esphome::lvgl::FontEngine* small_mdi_font = 0;
-static esphome::lvgl::FontEngine* large_mdi_font = 0;
 
 typedef struct {
     std::string id;
@@ -155,6 +136,11 @@ class LvglItemEventListener {
         virtual void on_data_request(int page, int item) = 0;
 };
 
+class LvglPageEventListener {
+    public:
+        virtual void on_back_button(int page) = 0;
+};
+
 class DashboardButtonListener {
     public:
         virtual bool on_button(int index, lv_event_code_t event) = 0;
@@ -170,6 +156,11 @@ typedef struct {
     int index;
     DashboardButtonListener* listener;
 } DashboardButtonListenerDef;
+
+typedef struct {
+    int index;
+    LvglPageEventListener* listener;
+} LvglPageEventListenerDef;
 
 class MdiFont {
     protected:
@@ -219,6 +210,7 @@ class DashboardItem {
     protected:
         lv_obj_t* root_ = 0;
         ItemDef* def_ = 0;
+        bool visible_ = false;
 
         ItemEventListenerDef listener_{.item = 0, .page = 0, .listener = 0};
 
@@ -245,6 +237,7 @@ class DashboardItem {
         void on_tap_event(lv_event_code_t code, lv_event_t* event);
 
         void set_listener(int page, int item, LvglItemEventListener* listener);
+        virtual void show(bool visible) { this->visible_ = visible; }
 
         static DashboardItem* new_instance(ItemDef* def);
 };
@@ -290,6 +283,7 @@ class ImageItem : public DashboardItem, public WithDataBuffer {
 
         void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t color);
         void show();
+        void show(bool visible) override;
 };
 
 static lv_style_t btn_style_normal_;
@@ -330,26 +324,38 @@ class DashboardButton {
 };
 
 static lv_style_t page_style_;
+static lv_style_t sub_page_style_;
 class DashboardPage {
     protected:
         PageDef* def_ = 0;
-        lv_obj_t* root_ = 0;
+        lv_obj_t* page_ = 0;
+        lv_obj_t* root_ = 0; // Dashboard
+        lv_obj_t* close_btn_ = 0;
+
+        LvglPageEventListenerDef listener_{.index = 0, .listener = 0};
 
         std::vector<DashboardItem*> items_ = {};
+
+        lv_coord_t page_row_dsc_[2] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
+        lv_coord_t page_col_dsc_[3] = {LV_GRID_CONTENT, LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
         lv_coord_t row_dsc_[9] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), 
                                  LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
         lv_coord_t col_dsc_[9] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), 
                                  LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
+        lv_obj_t* create_page(lv_obj_t* root, bool sub_page);
+
     public:
         DashboardPage(PageDef* def) { this->def_ = def; }
         static void init(lv_obj_t* obj, bool init);
-        void setup(lv_obj_t* parent, int page, LvglItemEventListener *listener);
-        void destroy();
+        void setup(lv_obj_t* parent, int page, LvglItemEventListener *listener, LvglPageEventListener *page_listener);
+        void destroy(int page);
+        void show(int page, bool visible);
         lv_obj_t* get_lv_obj() { return this->root_; }
 
         void for_each_item(std::function<void(int, DashboardItem*)> &&fn, int item);
+        void on_tap_event(lv_event_code_t code, lv_event_t* event);
 };
 
 static lv_style_t more_page_base_;
@@ -392,13 +398,11 @@ class MoreInfoPage : public WithDataBuffer {
         void set_data(int32_t* data, int size, int offset, int total_size);
 };
 
-static lv_style_t root_page_style_;
-static lv_style_t sub_page_style_;
 static lv_style_t top_style_;
 static lv_style_t top_style_collapsed_;
 static lv_style_t root_btn_style_normal_;
 static lv_style_t root_btn_style_pressed_;
-class LvglDashboard : virtual public LvglItemEventListener, public DashboardButtonListener, public esphome::Component  {
+class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglPageEventListener, public DashboardButtonListener, public esphome::Component  {
     private:
 
         lv_coord_t btns_row_dsc[2] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
@@ -422,9 +426,6 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         lv_obj_t* buttons_ = 0;
         lv_obj_t* dashboard_btn_ = 0;
 
-        lv_obj_t* sub_page_ = 0;
-        lv_obj_t* sub_page_close_btn_ = 0;
-
         lv_obj_t* more_page_ = 0;
         lv_obj_t* more_page_close_btn_ = 0;
 
@@ -441,19 +442,13 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         esphome::lvgl::FontEngine* normal_font_ = 0;
         esphome::lvgl::FontEngine* large_font_ = 0;
 
-        void render_page(int index);
-        void hide_page(int index);
-
         void show_page(int index);
 
         void send_event_(std::string type, std::function<void(esphome::api::HomeassistantServiceResponse*)> &&fn);
         void send_event(int page, int item, std::string type);
         void send_more_page_event(bool visible);
 
-        lv_obj_t* create_root_btn(lv_obj_t* root, std::string icon);
-        lv_obj_t* create_sub_page(lv_obj_t* root);
         lv_obj_t* create_more_page(lv_obj_t* root);
-        lv_obj_t* create_root_page(lv_obj_t* root);
         lv_obj_t* create_buttons(lv_obj_t* root);
 
         bool has_buttons() { return this->switches_.size() > 0; }
@@ -467,6 +462,8 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         void clear();
 
     public:
+
+        static lv_obj_t* create_root_btn(lv_obj_t* root, std::string icon);
 
         void set_mdi_fonts(esphome::font::Font* small_font, esphome::font::Font* large_font);
         void set_fonts(esphome::font::Font* normal_font, esphome::font::Font* large_font) {
@@ -482,11 +479,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
             this->width_ = width;
             this->height_ = height;
         }
-        void set_vertical(bool vertical) {
-            this->vertical_ = vertical;
-            auto switch_height = vertical? LVD_SWITCH_HEIGHT_VERT: LVD_SWITCH_HEIGHT_HOR;
-            boot_theme_.switch_height = theme_.switch_height = switch_height;
-        }
+        void set_vertical(bool vertical);
         void set_backlight(esphome::switch_::Switch* backlight) { this->backlight_ = backlight; }
         void set_rtttl(esphome::rtttl::Rtttl* rtttl) { this->rtttl_ = rtttl; }
         void set_dashboard_reset_timeout(uint16_t timeout) { this->dashboard_timeout_ = timeout; }
@@ -499,6 +492,7 @@ class LvglDashboard : virtual public LvglItemEventListener, public DashboardButt
         void on_item_event(int page, int item, int event) override;
         void on_data_request(int page, int item) override;
         bool on_button(int index, lv_event_code_t event) override;
+        void on_back_button(int page) override;
 
         float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
 
