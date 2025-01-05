@@ -8,7 +8,7 @@ from esphome.const import (
 )
 
 _ns = cg.esphome_ns.namespace("lvgl_dashboard")
-_cls = _ns.class_("LvglDashboard", cg.Component)
+_cls = _ns.class_("LvglDashboard", cg.PollingComponent)
 
 CODEOWNERS = ["@kvj"]
 DEPENDENCIES = ["lvgl", "font", "api", "switch", "rtttl"]
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_DASHBOARD_RESET, default=DASHBOARD_RESET_DEF): cv.positive_int,
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(cv.use_id(cg.Component)),
     })
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("15s"))
 )
 
 

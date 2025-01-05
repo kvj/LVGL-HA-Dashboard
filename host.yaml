@@ -2,6 +2,13 @@ esphome:
   name: lvgl-dashboard-sdl
   friendly_name: LVGL Dashboard SDL
 
+external_components:
+  - source: components
+  - source: github://kvj/esphome@sdl_nice_window
+    refresh: 30s
+    components:
+    - sdl
+
 host:
 
 logger:
@@ -15,11 +22,14 @@ display:
   - platform: sdl
     auto_clear_enabled: false
     update_interval: never
+    resizable: false
+    on_top: true
+    title: Home Assistant
     dimensions:
       width: 800
       height: 480
       # width: 480
-      # height: 820
+      # height: 800
 
 time:
   - platform: host
@@ -65,7 +75,7 @@ lvgl_dashboard:
   large_font: large_font_
   width: 740
   height: 360
-  # vertical: yes
+  vertical: false
   switches:
     - sw_0
     - sw_1

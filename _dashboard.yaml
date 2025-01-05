@@ -32,6 +32,12 @@ font:
 
 api:
   id: api_server
+  on_client_connected:
+    - lambda: |-
+        id(dashboard_).update_connection_state();
+  on_client_disconnected:
+    - lambda: |-
+        id(dashboard_).update_connection_state();
   services:
     - service: set_pages
       variables:
