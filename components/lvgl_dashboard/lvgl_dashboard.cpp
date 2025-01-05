@@ -875,12 +875,14 @@ void DashboardPage::for_each_item(std::function<void(int, DashboardItem*)> &&fn,
 ItemDef default_item_ = {.col = 2, .row = 1, .cols = 1, .rows = 1, .icon = "\U000F0709", .label = "Loading...", .layout = "local"};
 PageDef default_page_ = {.cols = 5, .rows = 3, .items = { default_item_ }, .items_size = 1};
 
+lv_style_t connect_line_style_;
 void LvglDashboard::init(lv_obj_t* obj, bool init) {
     if (init) {
         lv_style_init(&top_style_);
         lv_style_init(&top_style_collapsed_);
         lv_style_init(&root_btn_style_normal_);
         lv_style_init(&root_btn_style_pressed_);
+        lv_style_init(&connect_line_style_);
     }
 
     this->clear();
@@ -890,7 +892,7 @@ void LvglDashboard::init(lv_obj_t* obj, bool init) {
     DashboardItem::init(obj, init);
     MoreInfoPage::init(obj, init);
 
-    lv_obj_set_style_pad_all(lv_layer_top(), theme_.padding, 0);
+    // lv_obj_set_style_pad_all(lv_layer_top(), theme_.padding, 0);
 
     lv_style_set_bg_opa(&top_style_, LV_OPA_TRANSP);
     lv_style_set_radius(&top_style_, theme_.radius);
@@ -908,6 +910,11 @@ void LvglDashboard::init(lv_obj_t* obj, bool init) {
     lv_style_set_bg_opa(&root_btn_style_normal_, LV_OPA_COVER);
 
     lv_style_set_bg_color(&root_btn_style_pressed_, theme_.btn_pressed_color);
+
+    lv_style_set_width(&connect_line_style_, lv_pct(100));
+    lv_style_set_height(&connect_line_style_, LVD_CONNECT_LINE_HEIGHT);
+    lv_style_set_bg_opa(&connect_line_style_, LV_OPA_COVER);
+    lv_style_set_bg_color(&connect_line_style_, LVD_CONNECT_LINE_COLOR);
 
     this->more_page_ = this->create_more_page(lv_obj_create(NULL));
 
@@ -1020,10 +1027,15 @@ lv_obj_t* LvglDashboard::create_buttons(lv_obj_t* root) {
     lv_obj_add_style(buttons_, &top_style_collapsed_, LV_STATE_USER_1);
     lv_obj_set_align(buttons_, LV_ALIGN_BOTTOM_LEFT);
 
+    this->connect_line_ = lv_obj_create(buttons_);
+    lv_obj_remove_style_all(this->connect_line_);
+    lv_obj_add_style(this->connect_line_, &connect_line_style_, 0);
+
     lv_obj_set_style_grid_row_dsc_array(buttons_, this->btns_row_dsc, 0);
     lv_obj_set_style_grid_column_dsc_array(buttons_, this->btns_row_dsc, 0);
-    
+        
     lv_obj_set_layout(buttons_, LV_LAYOUT_GRID);
+    lv_obj_set_grid_cell(this->connect_line_, LV_GRID_ALIGN_STRETCH, 0, 2, LV_GRID_ALIGN_CENTER, 1, 1);
 
     this->dashboard_btn_ = this->create_root_btn(buttons_, "\U000F056E");
     lv_obj_set_style_bg_color(this->dashboard_btn_, theme_.switch_on_line_color, LV_STATE_USER_1);
@@ -1107,6 +1119,16 @@ void LvglDashboard::setup() {
             return;
         }
     }
+    this->update_connection_state();
+}
+
+void LvglDashboard::update_connection_state() {
+    ESP_LOGD(TAG, "LvglDashboard::update_connection_state %d", this->api_server_->is_connected());
+    if (this->api_server_->is_connected()) {
+        lv_obj_add_flag(this->connect_line_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(this->connect_line_, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 bool LvglDashboard::buttons_visible() {
@@ -1160,11 +1182,13 @@ void LvglDashboard::set_buttons() {
             LV_GRID_ALIGN_STRETCH, 0, 1
         );
     }
+    lv_obj_set_grid_cell(this->connect_line_, LV_GRID_ALIGN_STRETCH, 0, cells, LV_GRID_ALIGN_START, 1, 1);
     if (size > 0) {
         lv_obj_clear_flag(this->dashboard_btn_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_grid_cell(this->dashboard_btn_, LV_GRID_ALIGN_START, dashboard_cell, 1, LV_GRID_ALIGN_END, 0, 1);
     }
     this->show_buttons(this->dashboard_timeout_ > 0);
+    this->update_connection_state();
 }
 
 void LvglDashboard::send_more_page_event(bool visible) {
@@ -1324,10 +1348,11 @@ void LvglDashboard::for_each_item(std::function<void(int, DashboardPage*, int, D
     }, page);
 }
 
-void LvglDashboard::loop() {
+void LvglDashboard::update() {
     this->for_each_item([](int, DashboardPage*, int, DashboardItem* item) {
         item->loop();
     }, -1, -1);
+    this->update_connection_state();
 }
 
 void LvglDashboard::send_event_(std::string type, std::function<void(esphome::api::HomeassistantServiceResponse*)> &&fn) {

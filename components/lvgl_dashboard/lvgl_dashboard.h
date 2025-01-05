@@ -43,7 +43,7 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
     #define LVD_TEXT_ON_COLOR lv_color_black()
 #endif
 #ifndef LVD_PADDING
-    #define LVD_PADDING 5
+    #define LVD_PADDING 7
 #endif
 #ifndef LVD_BORDER_RADIUS
     #define LVD_BORDER_RADIUS 7
@@ -86,6 +86,12 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
 #endif
 #ifndef LVD_SWITCH_LONG_CLICK_RTTTL
     #define LVD_SWITCH_LONG_CLICK_RTTTL "click:d=64,o=4,b=120:a"
+#endif
+#ifndef LVD_CONNECT_LINE_HEIGHT
+    #define LVD_CONNECT_LINE_HEIGHT 2
+#endif
+#ifndef LVD_CONNECT_LINE_COLOR
+    #define LVD_CONNECT_LINE_COLOR lv_palette_main(LV_PALETTE_RED)
 #endif
 
 typedef struct {
@@ -402,10 +408,10 @@ static lv_style_t top_style_;
 static lv_style_t top_style_collapsed_;
 static lv_style_t root_btn_style_normal_;
 static lv_style_t root_btn_style_pressed_;
-class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglPageEventListener, public DashboardButtonListener, public esphome::Component  {
+class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglPageEventListener, public DashboardButtonListener, public esphome::PollingComponent  {
     private:
 
-        lv_coord_t btns_row_dsc[2] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
+        lv_coord_t btns_row_dsc[3] = {LV_GRID_FR(1), LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
         lv_coord_t btns_col_dsc[5] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
         esphome::lvgl::LvglComponent* root_ = 0;
@@ -425,6 +431,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
 
         lv_obj_t* buttons_ = 0;
         lv_obj_t* dashboard_btn_ = 0;
+        lv_obj_t* connect_line_ = 0;
 
         lv_obj_t* more_page_ = 0;
         lv_obj_t* more_page_close_btn_ = 0;
@@ -485,7 +492,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         void set_dashboard_reset_timeout(uint16_t timeout) { this->dashboard_timeout_ = timeout; }
         void add_component(esphome::Component* component) { this->components_.push_back(component); }
         void setup() override;
-        void loop() override;
+        void update() override;
 
         void add_switch(esphome::switch_::Switch* switch_);
 
@@ -507,6 +514,8 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
 
         void show_more_page(JsonObject data);
         void hide_more_page();
+
+        void update_connection_state();
 
         void service_set_pages(std::vector<std::string> pages, int page);
         void service_set_value(int page, int item, std::string value);
