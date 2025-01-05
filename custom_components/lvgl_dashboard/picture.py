@@ -21,20 +21,21 @@ def bytes_to_565_ints(data: bytes, content_type: str, size: int):
         image.thumbnail((size, size))
         out_bytes = image.tobytes(encoder_name="raw")
         pixels = image.width * image.height
+        bp = int(len(out_bytes) / pixels)
         def to_565(i: int) -> int:
             def byte_value(index: int) -> int:
                 if index < len(out_bytes):
                     return out_bytes[index]
                 return 0
-            R = byte_value(3 * i) >> 3
-            G = byte_value(3 * i + 1) >> 2
-            B = byte_value(3 * i + 2) >> 3
+            R = byte_value(bp * i) >> 3
+            G = byte_value(bp * i + 1) >> 2
+            B = byte_value(bp * i + 2) >> 3
             return (R << 11) | (G << 5) | B
-        _LOGGER.debug(f"bytes_to_565: pixels {image.width}x{image.height} ~ {len(out_bytes)}, {content_type}")
+        _LOGGER.debug(f"bytes_to_565: pixels {image.width}x{image.height} ~ {len(out_bytes)}, {content_type}, {bp}")
         result = []
         for i in range(0, pixels, 2):
             result.append(struct.unpack("<i", struct.pack(">I", (to_565(i) << 16) | to_565(i+1)))[0])
-        # _LOGGER.debug(f"bytes_to_565: int32s {image.width}x{image.height} ~ {len(result)}")
+        _LOGGER.debug(f"bytes_to_565: int32s {image.width}x{image.height} ~ {len(result)}")
         return ((image.width, image.height), result)
 
 def get_entity_by_entity_id(hass: HomeAssistant, entity_id: str) -> image.ImageEntity | None:
