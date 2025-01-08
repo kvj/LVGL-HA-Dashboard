@@ -243,7 +243,11 @@ class DashboardItem {
         void on_tap_event(lv_event_code_t code, lv_event_t* event);
 
         void set_listener(int page, int item, LvglItemEventListener* listener);
-        virtual void show(bool visible) { this->visible_ = visible; }
+        virtual bool show(bool visible) {
+            bool result = visible != this->visible_;
+            this->visible_ = visible; 
+            return result;
+        }
 
         static DashboardItem* new_instance(ItemDef* def);
 };
@@ -289,7 +293,7 @@ class ImageItem : public DashboardItem, public WithDataBuffer {
 
         void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t color);
         void show();
-        void show(bool visible) override;
+        bool show(bool visible) override;
 };
 
 static lv_style_t btn_style_normal_;
@@ -411,7 +415,7 @@ static lv_style_t root_btn_style_pressed_;
 class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglPageEventListener, public DashboardButtonListener, public esphome::PollingComponent  {
     private:
 
-        lv_coord_t btns_row_dsc[3] = {LV_GRID_FR(1), LV_GRID_CONTENT, LV_GRID_TEMPLATE_LAST};
+        lv_coord_t btns_row_dsc[2] = {LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
         lv_coord_t btns_col_dsc[5] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
         esphome::lvgl::LvglComponent* root_ = 0;

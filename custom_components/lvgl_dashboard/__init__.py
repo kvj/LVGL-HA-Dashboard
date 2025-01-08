@@ -60,12 +60,6 @@ def get_dashboards(hass: HomeAssistant) -> dict:
         result[key] = value.get("title", key)
     return result
 
-async def _async_reload_entries(hass: HomeAssistant):
-    entries = hass.config_entries.async_entries(DOMAIN, False, False)
-    for entry in entries:
-        if coordinator := entry.runtime_data:
-            await coordinator.async_send_dashboard()
-
 def _register_coordinator_service(hass: HomeAssistant,  name: str, handler):
     async def handler_(call):
         for entry_id in await service.async_extract_config_entry_ids(hass, call):
@@ -118,7 +112,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         conf = config.get(DOMAIN, {})
         _LOGGER.debug(f"_async_reload_yaml: {conf}")
         hass.data[DOMAIN] = conf
-        await _async_reload_entries(hass)
     service.async_register_admin_service(hass, DOMAIN, SERVICE_RELOAD, _async_reload_yaml)
     _register_coordinator_service(
         hass, "show_page", 

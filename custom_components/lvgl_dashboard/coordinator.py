@@ -70,6 +70,7 @@ class Coordinator(DataUpdateCoordinator):
         self._on_config_entry_handler = None
         self._on_device_updated_handler = None
         self._on_service_call_handler = None
+        self._esphome_client = None
         self._entry_data = None
         self._on_entity_state_handler = None
 
@@ -536,17 +537,17 @@ class Coordinator(DataUpdateCoordinator):
     def _connect_to_services(self, entry_data):
         def _on_service_call(call):
             _LOGGER.debug(f"_on_service_call: {call}")
-            if call.service == "esphome.lvgl_dashboard_event":
+            if call.service == "esphome.lvgl_dashboard_event" and self.is_device_connected():
                 type_ = call.data.get("type")
                 self.hass.async_create_task(self.async_handle_event(type_, call.data))
-        if not self._on_service_call_handler:
+        if self._esphome_client != entry_data.client:
+            self._esphome_client = entry_data.client
             self._on_service_call_handler = entry_data.client.subscribe_service_calls(_on_service_call)
             _LOGGER.debug(f"_connect_to_services: {entry_data.services}")
             self.hass.async_create_task(self.async_send_dashboard())
 
     def _disconnect_from_services(self):
         _LOGGER.debug(f"_disconnect_from_services: {self._on_service_call_handler}")
-        self._on_service_call_handler = self._disable_listener(self._on_service_call_handler)
     
     def _connect_to_esphome_device(self, entry_data):
         def _on_device_update():
