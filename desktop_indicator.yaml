@@ -1,6 +1,6 @@
 esphome:
-  name: lvgl-dashboard-sdl
-  friendly_name: LVGL Dashboard SDL
+  name: lvgl-dashboard-indicators
+  friendly_name: LVGL Desktop Indicators
 
 external_components:
   - source: components
@@ -22,12 +22,12 @@ display:
   - platform: sdl
     auto_clear_enabled: false
     update_interval: never
-    # title: Home Assistant
+    resizable: false
+    on_top: true
+    title: Home Assistant
     dimensions:
-      width: 800
-      height: 480
-      # width: 480
-      # height: 800
+      width: 240
+      height: 200
 
 time:
   - platform: host
@@ -36,24 +36,7 @@ time:
 substitutions:
 
 packages:
-  common: !include {file: _dashboard.yaml, vars: {api_port: 6053}}
-
-switch:
-  - platform: template
-    optimistic: true
-    id: sw_0
-    restore_mode: ALWAYS_OFF
-    name: Switch 0
-  - platform: template
-    optimistic: true
-    id: sw_1
-    restore_mode: ALWAYS_ON
-    name: Switch 1
-  - platform: template
-    optimistic: true
-    id: backlight_
-    restore_mode: ALWAYS_ON
-    name: Backlight
+  common: !include {file: _dashboard.yaml, vars: {api_port: 6054}}
 
 output:
   - platform: template
@@ -65,18 +48,22 @@ rtttl:
   - id: rtttl_
     output: fake_output_
 
+switch:
+  - platform: template
+    optimistic: true
+    id: backlight_
+    restore_mode: ALWAYS_ON
+    name: Backlight
+    internal: true
+
 lvgl_dashboard:
   id: dashboard_
   mdi_font_small: mdi_30
   mdi_font_large: mdi_60
   normal_font: main_font_
   large_font: large_font_
-  width: 740
-  height: 360
+  width: 180
+  height: 180
   vertical: false
-  switches:
-    - sw_0
-    - sw_1
   backlight: backlight_
-  components:
-    - sw_0
+  switches: []

@@ -32,6 +32,7 @@ font:
 
 api:
   id: api_server
+  port: ${api_port}
   on_client_connected:
     - lambda: |-
         id(dashboard_).update_connection_state();
