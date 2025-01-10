@@ -318,18 +318,33 @@ class Coordinator(DataUpdateCoordinator):
         data = []
         all_entity_ids = set()
         for page in self.all_items(self._dashboard, "pages"):
+            rows = self._g(page, "rows", 4)
+            cols = self._g(page, "cols", 4)
             page_data = {
-                "rows": self._g(page, "rows", 4), 
-                "cols": self._g(page, "cols", 4), 
+                "rows": rows, 
+                "cols": cols, 
                 "items": []
             }
+            col = 0
+            row = 0
             for item in self.all_items(page, "items"):
-                item_data = {"layout": self._g(item, "layout", "button")}
-                for attr in ("col", "row", "cols", "rows"):
-                    if attr in item:
-                        item_data[attr] = self._g(item, attr)
+                x = self._g(item, "col", col)
+                y = self._g(item, "row", row)
+                cs = self._g(item, "cols", 1)
+                rs = self._g(item, "rows", 1)
+                item_data = {
+                    "layout": self._g(item, "layout", "button"),
+                    "col": x,
+                    "row": y,
+                    "cols": cs,
+                    "rows": rs,
+                }
                 all_entity_ids.update(self._pick_entity_ids(item))
                 page_data["items"].append(item_data)
+                col = x + cs
+                if col >= cols:
+                    col = 0
+                    row += 1 
             data.append(json.dumps(page_data))
         self.call_device_service("set_pages", {"jsons": data, "page": 0})
         idx = 0
@@ -540,7 +555,8 @@ class Coordinator(DataUpdateCoordinator):
             if call.service == "esphome.lvgl_dashboard_event" and self.is_device_connected():
                 type_ = call.data.get("type")
                 self.hass.async_create_task(self.async_handle_event(type_, call.data))
-        if self._esphome_client != entry_data.client:
+        if not self._on_service_call_handler:
+        # if self._esphome_client != entry_data.client:
             self._esphome_client = entry_data.client
             self._on_service_call_handler = entry_data.client.subscribe_service_calls(_on_service_call)
             _LOGGER.debug(f"_connect_to_services: {entry_data.services}")
@@ -548,6 +564,7 @@ class Coordinator(DataUpdateCoordinator):
 
     def _disconnect_from_services(self):
         _LOGGER.debug(f"_disconnect_from_services: {self._on_service_call_handler}")
+        self._on_service_call_handler = self._disable_listener(self._on_service_call_handler)
     
     def _connect_to_esphome_device(self, entry_data):
         def _on_device_update():
