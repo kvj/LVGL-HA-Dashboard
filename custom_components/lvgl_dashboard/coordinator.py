@@ -128,7 +128,7 @@ class Coordinator(DataUpdateCoordinator):
     def _gv(self, value, def_=None, state=None):
         if isinstance(value, template.Template):
             try:
-                return template.render_complex(value, {"this": state})
+                return template.render_complex(value, {"this": state, "state": state})
             except:
                 _LOGGER.exception(f"_gv: value = {value}, def_ = {def_}, state = {state}")
                 return def_
@@ -204,6 +204,26 @@ class Coordinator(DataUpdateCoordinator):
                 })
                 offset += SET_DATA_BATCH
 
+    def _add_with_priority(self, items: list, item: dict, x_field="col", y_field="row") -> list:
+        for i in range(len(items)):
+            item_ = items[i]
+            if item_[x_field] == item[x_field] and item_[y_field] == item[y_field]:
+                # Found
+                same_col = (item["col"] != "" and item_["col"] != "") or (item["col"] == "" and item_["col"] == "")
+                _LOGGER.debug(f"_add_with_priority: Found same cell: {item_} and {item}, same_col: {same_col}")
+                if same_col:
+                    if item_["p"] > item["p"]:
+                        # Previous item has higher prio - skip item
+                        return items
+                else:
+                    if item["col"] == "" and item_["col"] != "":
+                        # Last item or item with color wins
+                        return items
+                items[i] = item
+                return list(items)
+        items.append(item)
+        return list(items)
+
     async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
         state = self.state_by_entity_id(entity_id)
@@ -245,13 +265,32 @@ class Coordinator(DataUpdateCoordinator):
                 }
         if layout == "layout":
             items = []
+            ctype = self._g(item, "ctype", "button")
+            result = {
+                "ctype": ctype,
+                "col": self.color_from_state(state, item),
+                "cols": self._g(item, "lc", [1], state=state),
+                "rows": self._g(item, "lr", [1], state=state),
+            }
+            cols = len(result["cols"])
+            col = 0
+            row = 0
             for item_ in self.all_items(item, "items"):
+                col, row, x, y, cs, rs = self._arrange_in_cells(item_, col, row, cols)
                 entity_id_ = self._g(item_, "entity_id", state=state)
                 state_ = self.state_by_entity_id(entity_id_)
-                item__ = {"ctype": self._g(item_, "ctype", "text", state=state_)}
-                for key, name in (("col", "x"), ("row", "y"), ("cols", "w"), ("rows", "h")):
-                    if key in item_:
-                        item__[name] = self._g(item_, key, state=state_)
+
+                if self._g(item_, "hidden", state=state_) == True:
+                    continue
+                item__ = {
+                    "ctype": self._g(item_, "ctype", "text", state=state_),
+                    "x": x,
+                    "y": y,
+                    "w": cs,
+                    "h": rs,
+                    "col": self.color_from_state(state_, item_),
+                    "p": self._g(item_, "prio", 0, state=state_),
+                }
                 if "label" in item_:
                     item__["label"] = self._g(item_, "label", state=state_)
                 else:
@@ -259,17 +298,9 @@ class Coordinator(DataUpdateCoordinator):
                         icon_from_state(self._g(item_, "icon", state=state_), state_), 
                         self._g(item_, "size", ICON_SMALL, state=state_)
                     )
-                item__["col"] = self.color_from_state(state_, item_)
-                item__["_h"] = self._g(item_, "hidden", state=state_)
-                items.append(item__)
-            ctype = self._g(item, "ctype", "button")
-            return {
-                "ctype": ctype,
-                "col": self.color_from_state(state, item),
-                "items": items,
-                "cols": self._g(item, "lc", [1], state=state),
-                "rows": self._g(item, "lr", [1], state=state),
-            }
+                items = self._add_with_priority(items, item__, x_field="x", y_field="y")
+            result["items"] = items
+            return result
         return None
 
     async def async_send_values(self, entity_id: str | None = None, page: int | None = None):
@@ -300,6 +331,17 @@ class Coordinator(DataUpdateCoordinator):
                 yield item
             name_ += "_"
 
+    def _arrange_in_cells(self, item, col, row, cols):
+        x = self._g(item, "col", col)
+        y = self._g(item, "row", row)
+        cs = self._g(item, "cols", 1)
+        rs = self._g(item, "rows", 1)
+        col = x + cs
+        if col >= cols:
+            col = 0
+            row += 1 
+        return (col, row, x, y, cs, rs)
+
     async def async_send_dashboard(self):
         self._on_entity_state_handler = self._disable_listener(self._on_entity_state_handler)
         name = self._config.get(CONF_DASHBOARD)
@@ -327,10 +369,7 @@ class Coordinator(DataUpdateCoordinator):
             col = 0
             row = 0
             for item in self.all_items(page, "items"):
-                x = self._g(item, "col", col)
-                y = self._g(item, "row", row)
-                cs = self._g(item, "cols", 1)
-                rs = self._g(item, "rows", 1)
+                col, row, x, y, cs, rs = self._arrange_in_cells(item, col, row, cols)
                 item_data = {
                     "layout": self._g(item, "layout", "button"),
                     "col": x,
@@ -340,10 +379,6 @@ class Coordinator(DataUpdateCoordinator):
                 }
                 all_entity_ids.update(self._pick_entity_ids(item))
                 page_data["items"].append(item_data)
-                col = x + cs
-                if col >= cols:
-                    col = 0
-                    row += 1 
             data.append(json.dumps(page_data))
         self.call_device_service("set_pages", {"jsons": data, "page": 0})
         idx = 0
