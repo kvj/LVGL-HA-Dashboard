@@ -1,0 +1,26 @@
+name: create-release-from-manifest
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "custom_components/lvgl_dashboard/manifest.json"
+permissions:
+  contents: write
+  packages: read
+jobs:
+  create_tag:
+    name: Create tag from manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4  
+      - id: get-ver
+        name: Get version from manifest
+        run: |
+          VER=`jq -r ".version" custom_components/lvgl_dashboard/manifest.json`
+          echo "VER=$VER" >> $GITHUB_OUTPUT
+      - name: Create new tag and release
+        run: gh release create ${{ steps.get-ver.outputs.VER }} --generate-notes  
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
