@@ -2,7 +2,7 @@ name: create-release-from-manifest
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - "custom_components/lvgl_dashboard/manifest.json"
 permissions:
