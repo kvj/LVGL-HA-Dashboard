@@ -48,6 +48,14 @@ api:
         - lambda: |-
             ESP_LOGD("API", "set_pages: %u, %ld", jsons.size(), page);
             id(dashboard_).service_set_pages(jsons, page);
+    - service: add_page
+      variables:
+        json_value: string
+        reset: bool
+      then:
+        - lambda: |-
+            ESP_LOGD("API", "add_page: %d", reset);
+            id(dashboard_).service_add_page(json_value, reset);
     - service: set_value
       variables:
         page: int

@@ -1158,7 +1158,7 @@ void LvglDashboard::setup() {
         });
     });
     default_page_.vertical = this->vertical_;
-    this->set_pages(&default_page_, 1);
+    this->add_page(&default_page_, 0);
     this->show_page(0);
 
     for (auto entry : this->components_) {
@@ -1264,6 +1264,11 @@ void LvglDashboard::hide_more_page() {
     this->send_more_page_event(false);
 }
 
+void LvglDashboard::add_page(PageDef* page, int index) {
+        auto* page_ = new DashboardPage(page);
+        this->page_objs_.push_back(page_);
+        page_->setup(index == 0? this->page_: NULL, index, this, this);
+}
 
 void LvglDashboard::set_pages(PageDef* pages, int size) {
     ESP_LOGD(TAG, "LvglDashboard::set_pages %d", size);
@@ -1322,6 +1327,46 @@ void LvglDashboard::service_set_theme(std::string json_value) {
         LVD_SET_THEME_COORD("radius", radius);
     });
     this->init(this->page_, false);
+}
+
+void LvglDashboard::service_add_page(std::string page_json, bool reset) {
+    if (reset) {
+        icons_->clear();
+        this->clear_pages();
+    }
+
+    json_parse_(page_json, [reset, this](JsonObject obj) {
+        int page_index = this->page_objs_.size();
+        // Make PageDef
+        int pcols = obj["cols"];
+        int prows = obj["rows"];
+        PageDef page = {.cols = pcols, .rows = prows, .vertical = this->vertical_};
+        JsonArray items = obj["items"];
+        int items_size = 0;
+        int col = 0;
+        int row = 0;
+        for (JsonObject item : items) {
+            col = item.containsKey("col")? item["col"]: col;
+            row = item.containsKey("row")? item["row"]: row;
+            int cols = item.containsKey("cols")? item["cols"]: 1;
+            int rows = item.containsKey("rows")? item["rows"]: 1;
+            ItemDef item_ = {.col = col, .row = row, .cols = cols, .rows = rows, .layout = item["layout"]};
+            page.items[items_size++] = item_;
+            col += cols;
+            if (col >= pcols) {
+                row++;
+                col = 0;
+            }
+        }
+        page.items_size = items_size;
+        this->pages_[page_index] = page; // Copy
+        this->add_page(&this->pages_[page_index], page_index); // Add page
+    });
+
+    if (reset) {
+        this->show_page(0);
+        this->send_more_page_event(false);
+    }
 }
 
 void LvglDashboard::service_set_pages(std::vector<std::string> pages, int page) {

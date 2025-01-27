@@ -528,6 +528,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         void for_each_item(std::function<void(int, DashboardPage*, int, DashboardItem*)> &&fn, int page, int item);
 
         void set_buttons();
+        void add_page(PageDef* page, int index);
         void set_pages(PageDef* pages, int size);
 
         void on_event(lv_event_t* event);
@@ -539,6 +540,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         void update_connection_state();
 
         void service_set_pages(std::vector<std::string> pages, int page);
+        void service_add_page(std::string page, bool reset);
         void service_set_value(int page, int item, std::string value);
         void service_set_data(int page, int item, int32_t* data, int size, int offset, int total_size);
         void service_show_page(int page);

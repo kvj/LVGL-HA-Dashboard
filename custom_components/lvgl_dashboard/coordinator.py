@@ -357,8 +357,8 @@ class Coordinator(DataUpdateCoordinator):
                 theme[key] = str(value)
         _LOGGER.debug(f"async_send_dashboard: set_theme: {theme}")
         self.call_device_service("set_theme", {"json_value": json.dumps(theme)})
-        data = []
         all_entity_ids = set()
+        page_index = 0
         for page in self.all_items(self._dashboard, "pages"):
             rows = self._g(page, "rows", 4)
             cols = self._g(page, "cols", 4)
@@ -381,8 +381,9 @@ class Coordinator(DataUpdateCoordinator):
                 }
                 all_entity_ids.update(self._pick_entity_ids(item))
                 page_data["items"].append(item_data)
-            data.append(json.dumps(page_data))
-        self.call_device_service("set_pages", {"jsons": data, "page": 0})
+            
+            self.call_device_service("add_page", {"json_value": json.dumps(page_data), "reset": page_index == 0})
+            page_index += 1
         idx = 0
         for button in self._dashboard.get("buttons", []):
             self.call_device_service("set_button", {

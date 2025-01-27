@@ -235,6 +235,7 @@ class DashboardPage extends EventTarget {
         super();
         this.index = index;
         this.root = document.createElement("div");
+        this.root.style.display = "none";
         this.dashboardEl_ = this.createDashboard(obj.rows, obj.cols, obj.items, theme, vertical);
         if (index > 0) {
             const body = this.root.appendChild(document.createElement("div"));
@@ -370,6 +371,30 @@ class LVGLDashboard extends HTMLElement {
         });
     }
 
+    addPage(object, reset) {
+        console.log(`addPage`, object, reset);
+        if (reset) {
+            this.pages.forEach((page) => {
+                page.destroy();
+            });
+            this.pages = [];
+            this.root.innerHTML = ``;
+        }
+        const index = this.pages.length;
+        const page = new DashboardPage(object, index, this.theme, this.config_["vertical"] == true);
+        this.pages.push(page);
+
+        this.listenToEvents(index, page);
+        const dashboard = page.dashboard();
+        dashboard.className = "main-container";
+        this.root.appendChild(page.element());
+
+        if (reset) {
+            this.showPage(0);
+        }
+
+    }
+
     setPages(objects) {
         console.log(`setPages`, objects);
         this.pages.forEach((page) => {
@@ -433,8 +458,8 @@ class LVGLDashboard extends HTMLElement {
             case "set_theme":
                 this.setTheme(JSON.parse(data.json_value));
                 break;
-            case "set_pages":
-                this.setPages(data.jsons.map((item) => JSON.parse(item)));
+            case "add_page":
+                this.addPage(JSON.parse(data.json_value), data.reset);
                 break;
             case "set_value":
                 this.setValue(data.page, data.item, JSON.parse(data.json_value));
@@ -459,6 +484,7 @@ class LVGLDashboard extends HTMLElement {
         this.styleTag.textContent = `
         .root {
             zoom: ${zoom};
+            margin: 0.5rem auto;
         }
         .flex-center {
             width: 100%;
