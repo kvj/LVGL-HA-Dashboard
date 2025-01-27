@@ -136,6 +136,23 @@ typedef struct {
     int items_size;
 } PageDef;
 
+class ButtonComponentWrapper {
+    protected:
+        esphome::EntityBase* component_ = 0;
+        std::string type_;
+
+        template <typename T>
+        T* as_t() { return (T*)this->component_; }
+    public:
+        bool is_on();
+        void toggle();
+        void add_on_state_callback(std::function<void(bool)> &&callback);
+        void set_component(std::string type, esphome::EntityBase* component) {
+            this->component_ = component;
+            this->type_ = type;
+        }
+};
+
 class LvglItemEventListener {
     public:
         virtual void on_item_event(int page, int item, int event) = 0;
@@ -308,7 +325,7 @@ class DashboardButton {
         lv_obj_t* root_ = 0;
         lv_obj_t* wrapper_ = 0;
         lv_obj_t* line_ = 0;
-        esphome::switch_::Switch* switch_ = 0;
+        ButtonComponentWrapper* component_ = 0;
 
         DashboardButtonListenerDef listener_{.listener = 0};
 
@@ -319,7 +336,7 @@ class DashboardButton {
         std::string long_click_rtttl = LVD_SWITCH_LONG_CLICK_RTTTL;
 
         static void init(lv_obj_t* obj, bool init);
-        void setup(lv_obj_t* root, esphome::switch_::Switch* switch_);
+        void setup(lv_obj_t* root, ButtonComponentWrapper* component_);
         void destroy();
         lv_obj_t* get_lv_obj() { return this->root_; }
 
@@ -421,7 +438,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         esphome::lvgl::LvglComponent* root_ = 0;
         esphome::api::APIServer* api_server_ = 0;
 
-        std::vector<esphome::switch_::Switch*> switches_ = {};
+        std::vector<ButtonComponentWrapper*> button_components_ = {};
         std::vector<esphome::Component*> components_ = {};
         esphome::switch_::Switch* backlight_ = 0;
         esphome::rtttl::Rtttl* rtttl_ = 0;
@@ -462,7 +479,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         lv_obj_t* create_more_page(lv_obj_t* root);
         lv_obj_t* create_buttons(lv_obj_t* root);
 
-        bool has_buttons() { return this->switches_.size() > 0; }
+        bool has_buttons() { return this->button_components_.size() > 0; }
         void show_buttons(bool visible);
         bool buttons_visible();
         bool more_page_visible();
@@ -498,7 +515,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         void setup() override;
         void update() override;
 
-        void add_switch(esphome::switch_::Switch* switch_);
+        void add_button_component(std::string type, esphome::EntityBase* component);
 
         void on_item_event(int page, int item, int event) override;
         void on_data_request(int page, int item) override;

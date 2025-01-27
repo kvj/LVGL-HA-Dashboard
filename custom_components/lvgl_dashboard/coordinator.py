@@ -337,6 +337,7 @@ class Coordinator(DataUpdateCoordinator):
         cs = self._g(item, "cols", 1)
         rs = self._g(item, "rows", 1)
         col = x + cs
+        row = y
         if col >= cols:
             col = 0
             row += 1 
@@ -370,6 +371,7 @@ class Coordinator(DataUpdateCoordinator):
             row = 0
             for item in self.all_items(page, "items"):
                 col, row, x, y, cs, rs = self._arrange_in_cells(item, col, row, cols)
+                _LOGGER.debug(f"async_send_dashboard: {x}x{y} - {cs}x{rs}, {col}x{row}, {item}, {cols}")
                 item_data = {
                     "layout": self._g(item, "layout", "button"),
                     "col": x,

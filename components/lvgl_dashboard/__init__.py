@@ -32,8 +32,14 @@ CONF_RTTTL = "rtttl"
 CONF_DASHBOARD_RESET = "dashboard_reset"
 CONF_VERTICAL = "vertical"
 CONF_COMPONENTS = "components"
+CONF_TYPE = "type"
 
 DASHBOARD_RESET_DEF = 10
+
+BUTTON_CMP = cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(cg.EntityBase),
+    cv.Optional(CONF_TYPE, default="switch"): cv.string,
+})
 
 CONFIG_SCHEMA = (
     cv.Schema({
@@ -46,7 +52,7 @@ CONFIG_SCHEMA = (
         cv.Required(CONF_MDI_FONT_LARGE): cv.use_id(font.Font),
         cv.Required(CONF_FONT_NORMAL): cv.use_id(font.Font),
         cv.Optional(CONF_FONT_LARGE): cv.use_id(font.Font),
-        cv.Required(CONF_SWITCHES): cv.ensure_list(cv.use_id(switch.Switch)),
+        cv.Required(CONF_SWITCHES): cv.ensure_list(BUTTON_CMP),
         cv.Optional(CONF_DESIGN): cv.Schema({}, extra=cv.ALLOW_EXTRA),
         cv.Optional(CONF_BACKLIGHT): cv.use_id(switch.Switch),
         cv.Optional(CONF_RTTTL): cv.use_id(rtttl.Rtttl),
@@ -84,8 +90,8 @@ async def to_code(config):
     # else:
     #     lvgl.defines.add_define("LV_FONT_MONTSERRAT_28")
     cg.add(var.set_fonts(await cg.get_variable(config[CONF_FONT_NORMAL]), large_font_))
-    for item in config[CONF_SWITCHES]:
-        cg.add(var.add_switch(await cg.get_variable(item)))
+    for conf in config[CONF_SWITCHES]:
+        cg.add(var.add_button_component(conf[CONF_TYPE], await cg.get_variable(conf[CONF_ID])))
     if CONF_BACKLIGHT in config:
         cg.add(var.set_backlight(await cg.get_variable(config[CONF_BACKLIGHT])))
     if CONF_RTTTL in config:

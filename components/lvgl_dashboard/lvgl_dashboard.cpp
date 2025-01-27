@@ -271,6 +271,45 @@ void WithDataBuffer::destroy_() {
     }
 }
 
+bool ButtonComponentWrapper::is_on() {
+    if (this->type_ == "switch") {
+        #ifdef USE_SWITCH
+        return this->as_t<esphome::switch_::Switch>()->state;
+        #endif
+    }
+    if (this->type_ == "binary_sensor") {
+        #ifdef USE_BINARY_SENSOR
+        return this->as_t<esphome::binary_sensor::BinarySensor>()->state;
+        #endif
+    }
+    return false;
+}
+
+void ButtonComponentWrapper::toggle() {
+    if (this->type_ == "switch") {
+        #ifdef USE_SWITCH
+        return this->as_t<esphome::switch_::Switch>()->toggle();
+        #endif
+    }
+}
+
+void ButtonComponentWrapper::add_on_state_callback(std::function<void(bool)> &&callback) {
+    if (this->type_ == "switch") {
+        #ifdef USE_SWITCH
+        this->as_t<esphome::switch_::Switch>()->add_on_state_callback([callback](bool state) {
+            callback(state);
+        });
+        #endif
+    }
+    if (this->type_ == "binary_sensor") {
+        #ifdef USE_BINARY_SENSOR
+        this->as_t<esphome::binary_sensor::BinarySensor>()->add_on_state_callback([callback](bool state) {
+            callback(state);
+        });
+        #endif
+    }
+}
+
 
 void DashboardButton::on_event(lv_event_t* event) {
     auto code = lv_event_get_code(event);
@@ -293,7 +332,7 @@ void DashboardButton::on_tap_event(lv_event_code_t code, lv_event_t* event) {
         return;
     }
     if (code == LV_EVENT_SHORT_CLICKED) {
-        this->switch_->toggle();
+        this->component_->toggle();
     }
 }
 
@@ -335,8 +374,8 @@ void DashboardButton::update_state(bool state) {
     
 }
 
-void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
-    this->switch_ = switch_;
+void DashboardButton::setup(lv_obj_t* root, ButtonComponentWrapper* component) {
+    this->component_ = component;
     this->root_ = lv_btn_create(root);
     
     lv_obj_set_size(this->root_, lv_pct(100), LV_SIZE_CONTENT);
@@ -376,7 +415,7 @@ void DashboardButton::setup(lv_obj_t* root, esphome::switch_::Switch* switch_) {
     lv_obj_set_flex_align(this->wrapper_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     lv_obj_set_style_pad_column(this->wrapper_, theme_.padding, 0);
 
-    this->update_state(switch_->state);
+    this->update_state(component->is_on());
 }
 
 void DashboardButton::set_side_icon(lv_obj_t* obj, JsonObject data) {
@@ -933,10 +972,12 @@ void LvglDashboard::init(lv_obj_t* obj, bool init) {
 
 }
 
-void LvglDashboard::add_switch(esphome::switch_::Switch* switch_) { 
-    int index = this->switches_.size();
-    this->switches_.push_back(switch_);
-    switch_->add_on_state_callback([this, index](bool state) {
+void LvglDashboard::add_button_component(std::string type, esphome::EntityBase* component) { 
+    auto* cmp = new ButtonComponentWrapper();
+    cmp->set_component(type, component);
+    int index = this->button_components_.size();
+    this->button_components_.push_back(cmp);
+    cmp->add_on_state_callback([this, index](bool state) {
         ESP_LOGD(TAG, "LvglDashboard::add_on_state_callback: %d, %d, %d", state, index, this->button_objs_.size());
         if (index < this->button_objs_.size()) {
             this->button_objs_[index]->update_state(state);
@@ -1172,7 +1213,7 @@ void LvglDashboard::show_buttons(bool visible) {
 void LvglDashboard::set_buttons() {
     this->clear_buttons();
     lv_obj_add_flag(this->dashboard_btn_, LV_OBJ_FLAG_HIDDEN);
-    auto size = this->switches_.size();
+    auto size = this->button_components_.size();
     ESP_LOGD(TAG, "LvglDashboard::set_buttons: %d", size);
     int cells = size > 0? size + 1: 2;
     int dashboard_cell = 0;
@@ -1183,7 +1224,7 @@ void LvglDashboard::set_buttons() {
     for (int i = 0; i < size; i++) {
         auto* btn = new DashboardButton();
         btn->set_listener(i, this);
-        btn->setup(this->buttons_, this->switches_[i]);
+        btn->setup(this->buttons_, this->button_components_[i]);
         this->button_objs_.push_back(btn);
         lv_obj_set_grid_cell(
             btn->get_lv_obj(), 
