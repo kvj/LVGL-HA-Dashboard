@@ -566,21 +566,6 @@ void DashboardItem::set_text_color(lv_obj_t* obj, JsonObject data) {
 }
 
 
-void ImageItem::set_data(int32_t* data, int size, int offset, int total_size) {
-    if (this->set_data_(data, size, offset, total_size)) {
-        this->show();
-    }
-}
-
-void ImageItem::show() {
-    ESP_LOGD(TAG, "ImageItem::show");
-    this->image_.data_size = this->data_size_;
-    this->image_.data = (unsigned char*)this->data_;
-    // ESP_LOGD(TAG, "DashboardItem::set_value: image: %d, %d, %lu", this->image_.header.w, this->image_.header.h, this->data_size_);
-    lv_img_set_src(lv_obj_get_child(this->root_, 0), &this->image_);
-    lv_obj_clear_flag(lv_obj_get_child(this->root_, 0), LV_OBJ_FLAG_HIDDEN);
-}
-
 void LayoutItem::set_value(JsonObject data) {
     lv_obj_clean(this->root_);
     JsonArray cols_ = data["cols"];
@@ -648,16 +633,35 @@ void ButtonItem::set_value(JsonObject data) {
 }
 
 void SensorItem::set_value(JsonObject data) {
+    this->set_bg_color(this->root_, data);
     icons_->set_icon(lv_obj_get_child(this->root_, 0), data["icon"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 1), data["name"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 2), data["value"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 3), data["unit"]);
+    for (int i = 0; i < 4; i++) {
+        this->set_text_color(lv_obj_get_child(this->root_, i), data);
+    }
+}
+
+void ImageItem::set_data(int32_t* data, int size, int offset, int total_size) {
+    if (this->set_data_(data, size, offset, total_size)) {
+        this->show();
+    }
+}
+
+void ImageItem::show() {
+    ESP_LOGD(TAG, "ImageItem::show");
+    this->image_.data_size = this->data_size_;
+    this->image_.data = (unsigned char*)this->data_;
+    // ESP_LOGD(TAG, "DashboardItem::set_value: image: %d, %d, %lu", this->image_.header.w, this->image_.header.h, this->data_size_);
+    lv_img_set_src(this->lv_img_, &this->image_);
 }
 
 bool ImageItem::show(bool visible) {
-    auto result = DashboardItem::show(visible);
-    if (result && visible && !lv_obj_has_flag(lv_obj_get_child(this->root_, 0), LV_OBJ_FLAG_HIDDEN)) {
-        ESP_LOGD(TAG, "ImageItem::show: %d x %d", this->def_->col, this->def_->row);
+    bool result = DashboardItem::show(visible);
+    if (this->data_pending_ && visible) {
+        ESP_LOGD(TAG, "ImageItem::show: %d x %d, %d", this->def_->col, this->def_->row, visible);
+        this->data_pending_ = false;
         this->request_data();
     }
     return result;
@@ -672,11 +676,27 @@ void ImageItem::set_value(JsonObject data) {
         this->image_.header.w = image["width"];
         this->image_.header.h = image["height"];
         this->image_.header.cf = LV_IMG_CF_TRUE_COLOR;
-        if (this->visible_)
+        if (this->visible_) {
+            this->data_pending_ = false;
             this->request_data();
-    } else {
-        lv_obj_add_flag(lv_obj_get_child(this->root_, 0), LV_OBJ_FLAG_HIDDEN);
+        } else {
+            this->data_pending_ = true;
+        }
     }
+}
+
+void ImageItem::setup(lv_obj_t* root) {
+    DashboardItem::setup(root);
+    lv_obj_set_style_bg_color(this->root_, theme_.btn_bg_color, 0);
+    this->lv_img_ = lv_img_create(this->root_);
+    lv_obj_center(this->lv_img_);
+    // lv_obj_add_flag(this->lv_img_, LV_OBJ_FLAG_HIDDEN);
+    subscribe_to_tap_events_(this->root_, this);
+}
+
+void ImageItem::destroy() {
+    DashboardItem::destroy();
+    WithDataBuffer::destroy_();
 }
 
 void LocalItem::setup(lv_obj_t* root) {
@@ -739,7 +759,7 @@ void SensorItem::setup(lv_obj_t* root) {
     lv_obj_set_layout(this->root_, LV_LAYOUT_GRID);
 
     lv_obj_t* icon = lv_label_create(this->root_);
-    lv_obj_set_grid_cell(icon, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+    lv_obj_set_grid_cell(icon, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 0, 1);
     lv_label_set_text(icon, "");
 
     lv_obj_t* label = lv_label_create(this->root_);
@@ -756,20 +776,6 @@ void SensorItem::setup(lv_obj_t* root) {
     lv_obj_set_grid_cell(unit, LV_GRID_ALIGN_END, 2, 1, LV_GRID_ALIGN_END, 1, 1);
     lv_obj_set_style_text_font(unit, lv_theme_get_font_small(root), 0);
     lv_label_set_text(unit, "");
-}
-
-void ImageItem::setup(lv_obj_t* root) {
-    DashboardItem::setup(root);
-    lv_obj_set_style_bg_color(this->root_, theme_.btn_bg_color, 0);
-    lv_obj_t* image = lv_img_create(this->root_);
-    lv_obj_center(image);
-    lv_obj_add_flag(image, LV_OBJ_FLAG_HIDDEN);
-    subscribe_to_tap_events_(this->root_, this);
-}
-
-void ImageItem::destroy() {
-    DashboardItem::destroy();
-    WithDataBuffer::destroy_();
 }
 
 void DashboardItem::setup(lv_obj_t* root) {

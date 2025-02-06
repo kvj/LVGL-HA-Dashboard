@@ -302,6 +302,8 @@ class SensorItem : public DashboardItem {
 class ImageItem : public DashboardItem, public WithDataBuffer {
     protected:
         lv_img_dsc_t image_{};
+        lv_obj_t* lv_img_ = 0;
+        bool data_pending_ = false;
     public:
         void setup(lv_obj_t* root) override;
         void set_value(JsonObject data) override;

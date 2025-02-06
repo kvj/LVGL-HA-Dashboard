@@ -7,5 +7,5 @@ __pycache__
 .vscode
 
 i2c_test.yaml
-switch_*.yaml
+switch_*.*
 esp32s3.yaml
