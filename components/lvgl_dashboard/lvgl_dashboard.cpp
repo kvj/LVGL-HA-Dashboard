@@ -1012,17 +1012,16 @@ void LvglDashboard::clear_pages() {
 }
 
 void LvglDashboard::clear() {
-    this->clear_buttons();
-    lv_obj_clean(lv_layer_top());
-
     this->clear_pages();
     lv_obj_clean(this->page_);
+
+    this->clear_buttons();
+    lv_obj_clean(lv_layer_top());
 
     if (this->more_info_page_ != 0) {
         lv_obj_del(this->more_page_);
         this->more_page_ = 0;
     }
-
 }
 
 lv_obj_t* LvglDashboard::create_more_page(lv_obj_t* root) {
@@ -1163,6 +1162,12 @@ void LvglDashboard::setup() {
             resp->data.push_back(entry__);
         });
     });
+    this->more_info_page_->set_load_finished_listener([this]() {
+        ESP_LOGD(TAG, "LvglDashboard::set_load_finished_listener: more page show");
+        lv_disp_load_scr(this->more_page_);
+        this->show_buttons(false);
+        this->send_more_page_event(true);
+    });
     default_page_.vertical = this->vertical_;
     this->add_page(&default_page_, 0);
     this->show_page(0);
@@ -1257,10 +1262,14 @@ void LvglDashboard::send_more_page_event(bool visible) {
 
 void LvglDashboard::show_more_page(JsonObject data) {
     this->more_info_page_->destroy();
-    this->more_info_page_->setup(lv_obj_get_child(this->more_page_, 1), data);
-    lv_disp_load_scr(this->more_page_);
-    this->show_buttons(false);
-    this->send_more_page_event(true);
+    if (this->more_info_page_->setup(lv_obj_get_child(this->more_page_, 1), data)) {
+        ESP_LOGD(TAG, "LvglDashboard::show_more_page: immediate show");
+        lv_disp_load_scr(this->more_page_);
+        this->show_buttons(false);
+        this->send_more_page_event(true);
+    } else {
+        ESP_LOGD(TAG, "LvglDashboard::show_more_page: deferred show");
+    }
 }
 
 void LvglDashboard::hide_more_page() {
@@ -1582,9 +1591,7 @@ void LvglDashboard::service_show_more(std::string json_value) {
 }
 
 void LvglDashboard::service_set_data_more(int32_t* data, int size, int offset, int total_size) {
-    if (this->more_page_visible()) {
-        this->more_info_page_->set_data(data, size, offset, total_size);
-    }
+    this->more_info_page_->set_data(data, size, offset, total_size);
 }
 
 void LvglDashboard::service_play_rtttl(std::string song) {
@@ -1644,7 +1651,12 @@ void MoreInfoPage::init(lv_obj_t* obj, bool init) {
     lv_style_set_height(&more_page_image_, LV_SIZE_CONTENT);
 }
 
-void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
+bool MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
+    this->immediate_display_ = true;
+    bool show_immediate = true;
+    if (data.containsKey("immediate")) {
+        show_immediate = data["immediate"];
+    }
     this->entity_id_ = (std::string)data["id"];
     std::string title = data["title"];
     this->ids_.clear();
@@ -1707,8 +1719,10 @@ void MoreInfoPage::setup(lv_obj_t* parent, JsonObject data) {
             this->image_.header.cf = LV_IMG_CF_TRUE_COLOR;
             if (this->data_request_listener_ != 0)
                 this->data_request_listener_(this->entity_id_, item["id"]);
+            if (!show_immediate) this->immediate_display_ = false;
         }
     }
+    return this->immediate_display_;
 }
 
 void MoreInfoPage::destroy() {
@@ -1740,10 +1754,13 @@ void MoreInfoPage::on_tap_event(lv_event_code_t code, lv_event_t* event) {
 }
 
 void MoreInfoPage::set_data(int32_t* data, int size, int offset, int total_size) {
+    if (this->image_cmp_ == 0) return;
     if (this->set_data_(data, size, offset, total_size) && (this->image_cmp_ != 0)) {
         this->image_.data_size = this->data_size_;
         this->image_.data = (unsigned char*)this->data_;
         lv_img_set_src(this->image_cmp_, &this->image_);
+        if (!this->immediate_display_ && (this->load_finished_listener_ != 0))
+            this->load_finished_listener_();
     }
 }
 

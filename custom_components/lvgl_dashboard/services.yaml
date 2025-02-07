@@ -27,6 +27,11 @@ show_more_page:
       example: sensor.time
       selector:
         entity:
+    immediate:
+      name: Show dialog immediately
+      required: no
+      selector:
+        boolean:
 hide_more_page:
   name: Hides more info page dialog
   target:

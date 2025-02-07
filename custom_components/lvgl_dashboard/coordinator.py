@@ -398,7 +398,7 @@ class Coordinator(DataUpdateCoordinator):
         )
         await self.async_send_values(None)
 
-    async def async_send_show_more_page(self, entity_id: str, item: dict | None = None):
+    async def async_send_show_more_page(self, entity_id: str, item: dict | None = None, immediate: bool = False):
         state = self.state_by_entity_id(entity_id)
         features = []
         if not state:
@@ -434,6 +434,7 @@ class Coordinator(DataUpdateCoordinator):
         self.call_device_service("show_more", {
             "json_value": json.dumps({
                 "features": features, "id": entity_id,
+                "immediate": immediate,
                 "title": self.name_from_state(entity_id, state)
             })
         })
@@ -549,7 +550,7 @@ class Coordinator(DataUpdateCoordinator):
         if "more" in action:
             more = self._g(action, "more")
             entity_id = self._g(item_def, "entity_id") if more == True else more
-            await self.async_send_show_more_page(entity_id, item_def)
+            await self.async_send_show_more_page(entity_id, item_def, immediate=True)
 
     async def async_handle_event(self, type_: str, event: dict):
         page = int(event.get("page", -1))

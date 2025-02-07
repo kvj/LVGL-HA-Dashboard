@@ -119,7 +119,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     )
     _register_coordinator_service(
         hass, "show_more_page", 
-        lambda coord, data: hass.async_create_task(coord.async_send_show_more_page(data["entity"]))
+        lambda coord, data: hass.async_create_task(coord.async_send_show_more_page(data["entity"], None, data.get("immediate", True)))
     )
     _register_coordinator_service(
         hass, "hide_more_page", 

@@ -401,16 +401,18 @@ class MoreInfoPage : public WithDataBuffer {
     protected:
         std::function<void(std::string, std::string, int)> change_listener_ = 0;
         std::function<void(std::string, std::string)> data_request_listener_ = 0;
+        std::function<void()> load_finished_listener_ = 0;
         std::vector<std::string> ids_ {};
         std::string entity_id_;
 
         lv_img_dsc_t image_{};
         lv_obj_t *image_cmp_ = 0;
+        bool immediate_display_ = false;
 
     public:
         static void init(lv_obj_t* obj, bool init);
 
-        void setup(lv_obj_t* parent, JsonObject data);
+        bool setup(lv_obj_t* parent, JsonObject data);
         void destroy();
 
         void set_change_listener(std::function<void(std::string, std::string, int)> &&listener) {
@@ -419,6 +421,10 @@ class MoreInfoPage : public WithDataBuffer {
 
         void set_data_request_listener(std::function<void(std::string, std::string)> &&listener) {
             this->data_request_listener_ = listener;
+        }
+
+        void set_load_finished_listener(std::function<void()> &&listener) {
+            this->load_finished_listener_ = listener;
         }
 
         void on_event(lv_event_t* event);
