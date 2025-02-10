@@ -48,6 +48,9 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
 #ifndef LVD_BORDER_RADIUS
     #define LVD_BORDER_RADIUS 7
 #endif
+#ifndef LVD_LAYOUT_GAP
+    #define LVD_LAYOUT_GAP 3
+#endif
 #ifndef LVD_PANEL_BG_COLOR
     #define LVD_PANEL_BG_COLOR lv_palette_darken(LV_PALETTE_GREY, 4)
 #endif
@@ -114,6 +117,7 @@ typedef struct {
     lv_coord_t switch_height;
     lv_coord_t padding;
     lv_coord_t radius;
+    lv_coord_t layout_gap;
 } ThemeDef;
 
 typedef struct {

@@ -282,14 +282,17 @@ class Coordinator(DataUpdateCoordinator):
 
                 if self._g(item_, "hidden", state=state_) == True:
                     continue
+                shape = self._g(item_, "shape", "", state=state_)
                 item__ = {
-                    "ctype": self._g(item_, "ctype", "text", state=state_),
+                    "ctype": self._g(item_, "ctype", "button" if shape else "text", state=state_),
                     "x": x,
                     "y": y,
                     "w": cs,
                     "h": rs,
                     "col": self.color_from_state(state_, item_),
                     "p": self._g(item_, "prio", 0, state=state_),
+                    "shp": shape,
+                    "r": self._g(item_, "radius", 0, state=state_),
                 }
                 if "label" in item_:
                     item__["label"] = self._g(item_, "label", state=state_)
