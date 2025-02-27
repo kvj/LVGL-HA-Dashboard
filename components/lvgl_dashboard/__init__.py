@@ -24,6 +24,7 @@ CONF_MDI_FONT_SMALL = "mdi_font_small"
 CONF_MDI_FONT_LARGE = "mdi_font_large"
 CONF_FONT_NORMAL = "normal_font"
 CONF_FONT_LARGE = "large_font"
+CONF_FONT_SMALL = "small_font"
 CONF_API = "api"
 CONF_SWITCHES = "switches"
 CONF_BACKLIGHT = "backlight"
@@ -52,6 +53,7 @@ CONFIG_SCHEMA = (
         cv.Required(CONF_MDI_FONT_LARGE): cv.use_id(font.Font),
         cv.Required(CONF_FONT_NORMAL): cv.use_id(font.Font),
         cv.Optional(CONF_FONT_LARGE): cv.use_id(font.Font),
+        cv.Optional(CONF_FONT_SMALL): cv.use_id(font.Font),
         cv.Required(CONF_SWITCHES): cv.ensure_list(BUTTON_CMP),
         cv.Optional(CONF_DESIGN): cv.Schema({}, extra=cv.ALLOW_EXTRA),
         cv.Optional(CONF_BACKLIGHT): cv.use_id(switch.Switch),
@@ -83,13 +85,19 @@ async def to_code(config):
     cg.add(var.set_config(config[CONF_WIDTH], config[CONF_HEIGHT]))
     cg.add(var.set_lvgl(await cg.get_variable(config[CONF_LVGL])))
     cg.add(var.set_api_server(await cg.get_variable(config[CONF_API])))
-    cg.add(var.set_mdi_fonts(await cg.get_variable(config[CONF_MDI_FONT_SMALL]), await cg.get_variable(config[CONF_MDI_FONT_LARGE])))
+    cg.add(var.set_mdi_fonts(
+        await cg.get_variable(config[CONF_MDI_FONT_SMALL]), 
+        await cg.get_variable(config[CONF_MDI_FONT_LARGE]),
+    ))
     large_font_ = 0
+    small_font_ = 0
     if CONF_FONT_LARGE in config:
         large_font_ = await cg.get_variable(config[CONF_FONT_LARGE])
+    if CONF_FONT_SMALL in config:
+        small_font_ = await cg.get_variable(config[CONF_FONT_SMALL])
     # else:
     #     lvgl.defines.add_define("LV_FONT_MONTSERRAT_28")
-    cg.add(var.set_fonts(await cg.get_variable(config[CONF_FONT_NORMAL]), large_font_))
+    cg.add(var.set_fonts(await cg.get_variable(config[CONF_FONT_NORMAL]), large_font_, small_font_))
     for conf in config[CONF_SWITCHES]:
         cg.add(var.add_button_component(conf[CONF_TYPE], await cg.get_variable(conf[CONF_ID])))
     if CONF_BACKLIGHT in config:

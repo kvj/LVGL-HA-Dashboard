@@ -224,6 +224,13 @@ class Coordinator(DataUpdateCoordinator):
         items.append(item)
         return list(items)
 
+    def _to_font(self, item: dict, state) -> str:
+        return {
+            "n": "", "normal": "", 
+            "small": "s", 
+            "large": "l", "big": "l",
+        }.get(self._g(item, "font", "", state=state))
+
     async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
         state = self.state_by_entity_id(entity_id)
@@ -238,6 +245,7 @@ class Coordinator(DataUpdateCoordinator):
                 "icon": self._mdi_font.get_icon_value(icon, icon_size),
                 "ctype": self._g(item, "ctype", "button"),
                 "col": self.color_from_state(state, item),
+                "font": self._to_font(item, state),
             }
         if layout == "sensor":
             icon = icon_from_state(self._g(item, "icon", state=state), state)
@@ -249,6 +257,7 @@ class Coordinator(DataUpdateCoordinator):
                 "unit": self._g(item, "unit", state.attributes.get("unit_of_measurement", "") if state else ""),
                 "ctype": self._g(item, "ctype", "text"),
                 "col": self.color_from_state(state, item),
+                "font": self._to_font(item, state),
             }
         if layout == "picture":
             scale = self._g(item, "scale", PICTURE_DEF_SCALE_ITEM, state=state)
@@ -293,6 +302,7 @@ class Coordinator(DataUpdateCoordinator):
                     "p": self._g(item_, "prio", 0, state=state_),
                     "shp": shape,
                     "r": self._g(item_, "radius", 0, state=state_),
+                    "font": self._to_font(item_, state_),
                 }
                 if "label" in item_:
                     item__["label"] = self._g(item_, "label", state=state_)

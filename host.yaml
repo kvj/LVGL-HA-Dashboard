@@ -71,6 +71,7 @@ lvgl_dashboard:
   mdi_font_large: mdi_60
   normal_font: main_font_
   large_font: large_font_
+  small_font: small_font_
   width: 740
   height: 360
   vertical: false

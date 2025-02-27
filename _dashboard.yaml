@@ -25,6 +25,15 @@ font:
   - file:
       type: gfonts
       family: Ubuntu Condensed
+    id: small_font_
+    size: 13
+    glyphsets:
+      - GF_Latin_Core
+      - GF_Greek_Core
+      - GF_Cyrillic_Core
+  - file:
+      type: gfonts
+      family: Ubuntu Condensed
     id: large_font_
     size: 30
     glyphsets:

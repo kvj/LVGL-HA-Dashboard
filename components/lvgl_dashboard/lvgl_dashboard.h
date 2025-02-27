@@ -245,7 +245,9 @@ class DashboardItem {
         lv_coord_t col_dsc_[4] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
         void set_bg_color(lv_obj_t* obj, JsonObject data);
+        void set_bg_color(lv_obj_t* obj, JsonObject data, bool def_color);
         void set_text_color(lv_obj_t* obj, JsonObject data);
+        void set_font(lv_obj_t* obj, JsonObject data);
 
         void request_data();
 
@@ -481,6 +483,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
 
         esphome::lvgl::FontEngine* normal_font_ = 0;
         esphome::lvgl::FontEngine* large_font_ = 0;
+        esphome::lvgl::FontEngine* small_font_ = 0;
 
         void show_page(int index);
 
@@ -506,10 +509,13 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         static lv_obj_t* create_root_btn(lv_obj_t* root, std::string icon);
 
         void set_mdi_fonts(esphome::font::Font* small_font, esphome::font::Font* large_font);
-        void set_fonts(esphome::font::Font* normal_font, esphome::font::Font* large_font) {
+        void set_fonts(esphome::font::Font* normal_font, esphome::font::Font* large_font, esphome::font::Font* small_font) {
             this->normal_font_ = new esphome::lvgl::FontEngine(normal_font);
             if (large_font != 0) {
                 this->large_font_ = new esphome::lvgl::FontEngine(large_font);
+            }
+            if (small_font != 0) {
+                this->small_font_ = new esphome::lvgl::FontEngine(small_font);
             }
         }
         void init(lv_obj_t* obj, bool init);

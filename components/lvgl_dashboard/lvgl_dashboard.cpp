@@ -516,18 +516,23 @@ void MdiFontCapable::clear() {
 }
 
 void DashboardItem::set_bg_color(lv_obj_t* obj, JsonObject data) {
+    this->set_bg_color(obj, data, true);
+}
+
+void DashboardItem::set_bg_color(lv_obj_t* obj, JsonObject data, bool def_color) {
     std::string mode = data["ctype"];
     std::string color = data["col"];
-    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    if (def_color) lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     if (color == "") {
-        lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
+        if (def_color) lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
         return;
     }
     if (mode == "text") {
-        lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
+        if (def_color) lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
         return;
     }
     if (color == "on") {
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(obj, theme_.btn_on_color, 0);
         return;
     }
@@ -536,10 +541,11 @@ void DashboardItem::set_bg_color(lv_obj_t* obj, JsonObject data) {
         return;
     }
     if (color.size() == 7) {
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(obj, lv_color_hex((uint32_t)std::stol(color.substr(1), nullptr, 16)), 0);
         return;
     }
-    lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
+    if (def_color) lv_obj_set_style_bg_color(obj, theme_.btn_bg_color, 0);
 }
 
 void DashboardItem::set_text_color(lv_obj_t* obj, JsonObject data) {
@@ -566,6 +572,21 @@ void DashboardItem::set_text_color(lv_obj_t* obj, JsonObject data) {
         return;
     }
 }
+
+void DashboardItem::set_font(lv_obj_t* obj, JsonObject data) {
+    if (!data.containsKey("font")) return;
+    std::string font = data["font"];
+    if (font == "l") {
+        lv_obj_set_style_text_font(obj, lv_theme_get_font_large(obj), 0);
+        return;
+    }
+    if (font == "s") {
+        lv_obj_set_style_text_font(obj, lv_theme_get_font_small(obj), 0);
+        return;
+    }
+    lv_obj_set_style_text_font(obj, lv_theme_get_font_normal(obj), 0);
+}
+
 
 
 void LayoutItem::set_value(JsonObject data) {
@@ -657,7 +678,8 @@ void LayoutItem::set_value(JsonObject data) {
             }
             if (shape_ != 0) {
                 parent = shape_;
-                this->set_bg_color(shape_, item);
+                lv_obj_set_style_bg_opa(shape_, LV_OPA_TRANSP, 0);
+                this->set_bg_color(shape_, item, false);
             }
         }
         lv_obj_t* obj = lv_label_create(parent);
@@ -669,7 +691,7 @@ void LayoutItem::set_value(JsonObject data) {
         if (item.containsKey("icon")) {
             icons_->set_icon(obj, item["icon"]);
         } else {
-            lv_obj_set_style_text_font(obj, lv_theme_get_font_normal(this->root_), 0);
+            this->set_font(obj, item);
             lv_label_set_text(obj, item["label"]);
         }
         this->set_text_color(obj, item);
@@ -686,12 +708,14 @@ void ButtonItem::set_value(JsonObject data) {
     this->set_text_color(label_, data);
     icons_->set_icon(icon_, data["icon"]);
     lv_label_set_text(label_, data["name"]);
+    this->set_font(label_, data);
 }
 
 void SensorItem::set_value(JsonObject data) {
     this->set_bg_color(this->root_, data);
     icons_->set_icon(lv_obj_get_child(this->root_, 0), data["icon"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 1), data["name"]);
+    this->set_font(lv_obj_get_child(this->root_, 1), data);
     lv_label_set_text(lv_obj_get_child(this->root_, 2), data["value"]);
     lv_label_set_text(lv_obj_get_child(this->root_, 3), data["unit"]);
     for (int i = 0; i < 4; i++) {
@@ -1181,7 +1205,7 @@ void LvglDashboard::setup() {
         normal_font_
     );
     this->theme__->font_large = this->large_font_ != 0? this->large_font_->get_lv_font(): &lv_font_montserrat_28;
-    this->theme__->font_small = &lv_font_montserrat_12;
+    this->theme__->font_small = this->small_font_ != 0? this->small_font_->get_lv_font(): &lv_font_montserrat_12;
     lv_disp_set_theme(this->root_->get_disp(), this->theme__);
 
     this->init(this->page_, true);
