@@ -17,6 +17,7 @@ from homeassistant.helpers import (
     device_registry,
 )
 
+from homeassistant.core import callback
 from homeassistant.components import camera, image, light
 from homeassistant.const import (
     CONF_DEVICE_ID,
@@ -69,9 +70,9 @@ class Coordinator(DataUpdateCoordinator):
 
         self._on_config_entry_handler = None
         self._on_device_updated_handler = None
-        self._connection_id = 0
         self._entry_data = None
         self._on_entity_state_handler = None
+        self._on_event_handler = None
 
     async def _async_setup(self):
         self._mdi_font = GlyphProvider()
@@ -373,8 +374,8 @@ class Coordinator(DataUpdateCoordinator):
         all_entity_ids = set()
         page_index = 0
         for page in self.all_items(self._dashboard, "pages"):
-            rows = self._g(page, "rows", 4)
-            cols = self._g(page, "cols", 4)
+            rows = self._g(page, "rows", self._g(self._dashboard, "rows", 4))
+            cols = self._g(page, "cols", self._g(self._dashboard, "cols", 4))
             page_data = {
                 "rows": rows, 
                 "cols": cols, 
@@ -600,30 +601,11 @@ class Coordinator(DataUpdateCoordinator):
             if type_ == "data_request":
                 await self.async_send_picture_data("set_data_more", entity_id, PICTURE_DEF_SCALE_MORE, lambda: {})
 
-    def _connect_to_services(self, entry_data):
-        self._connection_id += 1
-        connection_id = self._connection_id # Copy
-        def _on_service_call(call):
-            _LOGGER.debug(f"_on_service_call: {call}")
-            if connection_id != self._connection_id:
-                return
-            if call.service == "esphome.lvgl_dashboard_event" and self.is_device_connected():
-                type_ = call.data.get("type")
-                self.hass.async_create_task(self.async_handle_event(type_, call.data))
-        entry_data.client.subscribe_service_calls(_on_service_call)
-        _LOGGER.debug(f"_connect_to_services: {entry_data.services}")
-        self.hass.async_create_task(self.async_send_dashboard())
-
-    def _disconnect_from_services(self):
-        _LOGGER.debug(f"_disconnect_from_services:")
-    
     def _connect_to_esphome_device(self, entry_data):
         def _on_device_update():
             _LOGGER.debug(f"_on_device_update: {entry_data.available}")
             if entry_data.available:
-                self._connect_to_services(entry_data)
-            else:
-                self._disconnect_from_services()
+                self.hass.async_create_task(self.async_send_dashboard())
             self.hass.async_create_task(self._async_update_state({"connected": self.is_device_connected()}))
             
 
@@ -662,7 +644,15 @@ class Coordinator(DataUpdateCoordinator):
             return await self.async_send_dashboard()
         if event in ("click", "long_click", "page", "more"):
             return await self.async_handle_event(event, data)
-    
+
+    async def _async_on_device_event(self, event):
+        type_ = event.data.get("type")
+        await self.async_handle_event(type_, event.data)
+
+    @callback
+    def _device_event_filter(self, event_data) -> bool:
+        return self.is_device_connected() and event_data.get("device_id") == self._config[CONF_DEVICE_ID]
+
     async def async_load(self):
         self.load_options()
         if self.is_browser:
@@ -671,9 +661,10 @@ class Coordinator(DataUpdateCoordinator):
             return
         conf_entry = self._config_entry_by_device_id(self._config[CONF_DEVICE_ID])
         _LOGGER.debug(f"async_load: {self._config} {conf_entry}")
-
         if not conf_entry:
             return
+        
+        self._on_event_handler = self.hass.bus.async_listen("esphome.lvgl_dashboard_event", self._async_on_device_event, self._device_event_filter)
 
         def _on_config_entry(state, entry):
             if entry == conf_entry:
@@ -685,6 +676,7 @@ class Coordinator(DataUpdateCoordinator):
         self._on_config_entry_handler = dispatcher.async_dispatcher_connect(self.hass, SIGNAL_CONFIG_ENTRY_CHANGED, _on_config_entry)
         if conf_entry.state == ConfigEntryState.LOADED:
             _on_config_entry(ConfigEntryChange.UPDATED, conf_entry)
+        
 
     def _disable_listener(self, listener):
         if listener:
@@ -695,7 +687,7 @@ class Coordinator(DataUpdateCoordinator):
         _LOGGER.debug(f"async_unload:")
         self._on_config_entry_handler = self._disable_listener(self._on_config_entry_handler)
         self._on_entity_state_handler = self._disable_listener(self._on_entity_state_handler)
-        self._disconnect_from_services()
+        self._on_event_handler = self._disable_listener(self._on_event_handler)
         self._disconnect_from_esphome()
         self._dashboard = None
 
