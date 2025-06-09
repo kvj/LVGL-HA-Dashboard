@@ -283,10 +283,11 @@ class Coordinator(DataUpdateCoordinator):
                 "rows": self._g(item, "lr", [1], state=state),
             }
             cols = len(result["cols"])
+            rows = len(result["rows"])
             col = 0
             row = 0
             for item_ in self.all_items(item, "items"):
-                col, row, x, y, cs, rs = self._arrange_in_cells(item_, col, row, cols)
+                col, row, x, y, cs, rs = self._arrange_in_cells(item_, col, row, cols, rows)
                 entity_id_ = self._g(item_, "entity_id", state=state)
                 state_ = self.state_by_entity_id(entity_id_)
 
@@ -345,9 +346,13 @@ class Coordinator(DataUpdateCoordinator):
                 yield item
             name_ += "_"
 
-    def _arrange_in_cells(self, item, col, row, cols):
+    def _arrange_in_cells(self, item, col, row, cols, rows):
         x = self._g(item, "col", col)
         y = self._g(item, "row", row)
+        if x < 0:
+            x = cols + x
+        if y < 0:
+            y = rows + y
         cs = self._g(item, "cols", 1)
         rs = self._g(item, "rows", 1)
         col = x + cs
@@ -384,7 +389,7 @@ class Coordinator(DataUpdateCoordinator):
             col = 0
             row = 0
             for item in self.all_items(page, "items"):
-                col, row, x, y, cs, rs = self._arrange_in_cells(item, col, row, cols)
+                col, row, x, y, cs, rs = self._arrange_in_cells(item, col, row, cols, rows)
                 _LOGGER.debug(f"async_send_dashboard: {x}x{y} - {cs}x{rs}, {col}x{row}, {item}, {cols}")
                 item_data = {
                     "layout": self._g(item, "layout", "button"),
