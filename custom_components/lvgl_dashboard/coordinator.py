@@ -166,11 +166,11 @@ class Coordinator(DataUpdateCoordinator):
             _LOGGER.exception(f"async_picture_from_state: error getting picture")
         return (None, None)
     
-    async def async_picture_from_state(self, entity_id: str | None, state, size: int):
+    async def async_picture_from_state(self, entity_id: str | None, state, size: int, le: bool = False):
         try:
             if entity_id:
                 if image_ := await self.async_picture_by_entity_id(entity_id):
-                    size, data = bytes_to_565_ints(image_.content, image_.content_type, size)
+                    size, data = bytes_to_565_ints(image_.content, image_.content_type, size, le)
                     return (size, data)
         except:
             _LOGGER.exception(f"async_picture_from_state: error getting picture")
@@ -192,9 +192,9 @@ class Coordinator(DataUpdateCoordinator):
     def state_by_entity_id(self, entity_id: str | None):
         return self.hass.states.get(entity_id) if entity_id else None
 
-    async def async_send_picture_data(self, service: str, entity_id: str, scale: int, cb):
+    async def async_send_picture_data(self, service: str, entity_id: str, scale: int, le: bool, cb):
         state = self.state_by_entity_id(entity_id)
-        size, data = await self.async_picture_from_state(entity_id, state, scale)
+        size, data = await self.async_picture_from_state(entity_id, state, int(scale * self.get_theme_scale()), le)
         if size and data:
             offset = 0
             while offset < len(data):
@@ -231,16 +231,21 @@ class Coordinator(DataUpdateCoordinator):
             "small": "s", 
             "large": "l", "big": "l",
         }.get(self._g(item, "font", "", state=state))
-
+    
+    def get_theme_scale(self) -> float:
+        theme_conf = self._g(self._dashboard, "theme", {})
+        return self._g(theme_conf, "scale", 1.0)
+    
     async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
         state = self.state_by_entity_id(entity_id)
         hidden = self._g(item, "hidden", state=state)
+        theme_scale = self.get_theme_scale()
         if hidden:
             return {"_h": True}
         if layout == "button":
             icon = icon_from_state(self._g(item, "icon", state=state), state)
-            icon_size = int(self._g(item, "size", ICON_LARGE, state=state))
+            icon_size = int(self._g(item, "size", ICON_LARGE, state=state) * theme_scale)
             return {
                 "name": self._g(item, "name", self.name_from_state(entity_id, state), state=state),
                 "icon": self._mdi_font.get_icon_value(icon, icon_size),
@@ -262,7 +267,7 @@ class Coordinator(DataUpdateCoordinator):
             }
         if layout == "picture":
             scale = self._g(item, "scale", PICTURE_DEF_SCALE_ITEM, state=state)
-            size, data = await self.async_picture_from_state(entity_id, state, scale)
+            size, data = await self.async_picture_from_state(entity_id, state, int(scale * theme_scale))
             if size and data:
                 return {
                     "ctype": self._g(item, "ctype", "button"),
@@ -303,15 +308,16 @@ class Coordinator(DataUpdateCoordinator):
                     "col": self.color_from_state(state_, item_),
                     "p": self._g(item_, "prio", 0, state=state_),
                     "shp": shape,
-                    "r": self._g(item_, "radius", 0, state=state_),
+                    "r": int(self._g(item_, "radius", 0, state=state_) * theme_scale),
                     "font": self._to_font(item_, state_),
                 }
                 if "label" in item_:
                     item__["label"] = self._g(item_, "label", state=state_)
                 else:
+                    icon_size = self._g(item_, "size", ICON_SMALL, state=state_)
                     item__["icon"] = self._mdi_font.get_icon_value(
                         icon_from_state(self._g(item_, "icon", state=state_), state_), 
-                        self._g(item_, "size", ICON_SMALL, state=state_)
+                        int(icon_size * theme_scale)
                     )
                 items = self._add_with_priority(items, item__, x_field="x", y_field="y")
             result["items"] = items
@@ -370,7 +376,8 @@ class Coordinator(DataUpdateCoordinator):
         dashboard = self.get_dashboard(name)
         self._dashboard = self._to_template(dashboard)
         theme = {}
-        for key in self._g(self._dashboard, "theme", {}):
+        theme_conf = self._g(self._dashboard, "theme", {})
+        for key in theme_conf:
             value = self._g(self._dashboard["theme"], key)
             if value or value == 0:
                 theme[key] = str(value)
@@ -379,8 +386,8 @@ class Coordinator(DataUpdateCoordinator):
         all_entity_ids = set()
         page_index = 0
         for page in self.all_items(self._dashboard, "pages"):
-            rows = self._g(page, "rows", self._g(self._dashboard, "rows", 4))
-            cols = self._g(page, "cols", self._g(self._dashboard, "cols", 4))
+            rows = self._g(page, "rows", self._g(theme_conf, "rows", 4))
+            cols = self._g(page, "cols", self._g(theme_conf, "cols", 4))
             page_data = {
                 "rows": rows, 
                 "cols": cols, 
@@ -422,6 +429,7 @@ class Coordinator(DataUpdateCoordinator):
         features = []
         if not state:
             return
+        theme_scale = self.get_theme_scale()
         [domain, name] = entity_id.split(".")
         if domain in TOGGLABLE_DOMAINS:
             features.append({"type": "toggle", "id": "toggle", "value": state.state == "on"})
@@ -442,7 +450,7 @@ class Coordinator(DataUpdateCoordinator):
                 "value": state.state,
             })
         if domain in IMAGE_DOMAINS:
-            size, data = await self.async_picture_from_state(entity_id, state, PICTURE_DEF_SCALE_MORE)
+            size, data = await self.async_picture_from_state(entity_id, state, int(PICTURE_DEF_SCALE_MORE * theme_scale))
             if size and data:
                 features.append({
                     "type": "image", 
@@ -572,6 +580,7 @@ class Coordinator(DataUpdateCoordinator):
             await self.async_send_show_more_page(entity_id, item_def, immediate=True)
 
     async def async_handle_event(self, type_: str, event: dict):
+        _LOGGER.debug(f"async_handle_event: event = {event}")
         page = int(event.get("page", -1))
         item = int(event.get("item", -1))
         entity_id = event.get("id")
@@ -590,6 +599,7 @@ class Coordinator(DataUpdateCoordinator):
             if 0 <= item < len(btns):
                 btn = btns[item]
                 await self.async_exec_action(self._g(btn, "on_tap" if type_ == "button" else "on_long_tap"), btn)
+        le = event.get("le") == "1"
         if item_def := self._get_item_def(page, item):
             if type_ == "click":
                 await self.async_exec_action(self._g(item_def, "on_tap"), item_def)
@@ -598,13 +608,13 @@ class Coordinator(DataUpdateCoordinator):
             if type_ == "data_request":
                 entity_id_ = self._g(item_def, "entity_id")
                 scale = self._g(item_def, "scale", PICTURE_DEF_SCALE_ITEM)
-                await self.async_send_picture_data("set_data", entity_id_, scale, lambda: {"item": item, "page": page})
+                await self.async_send_picture_data("set_data", entity_id_, scale, le, lambda: {"item": item, "page": page})
         if entity_id and op:
             if type_ == "change":
                 value = int(event.get("value", 0))
                 await self.async_exec_change_action(entity_id, op, value)
             if type_ == "data_request":
-                await self.async_send_picture_data("set_data_more", entity_id, PICTURE_DEF_SCALE_MORE, lambda: {})
+                await self.async_send_picture_data("set_data_more", entity_id, PICTURE_DEF_SCALE_MORE, le, lambda: {})
 
     def _connect_to_esphome_device(self, entry_data):
         def _on_device_update():

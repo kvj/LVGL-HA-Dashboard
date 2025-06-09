@@ -477,6 +477,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
         
         int width_ = 0;
         int height_ = 0;
+        bool little_endian_ = false;
 
         bool vertical_ = false;
 
@@ -527,6 +528,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
             this->width_ = width;
             this->height_ = height;
         }
+        void set_little_endian(bool value) { this->little_endian_ = value; }
         void set_vertical(bool vertical);
         void set_backlight(esphome::switch_::Switch* backlight) { this->backlight_ = backlight; }
         void set_rtttl(esphome::rtttl::Rtttl* rtttl) { this->rtttl_ = rtttl; }

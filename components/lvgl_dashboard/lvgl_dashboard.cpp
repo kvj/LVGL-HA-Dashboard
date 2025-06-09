@@ -1230,7 +1230,7 @@ void LvglDashboard::setup() {
         });
     });
     this->more_info_page_->set_data_request_listener([this](std::string entity_id, std::string id) {
-        this->send_event_("data_request", [&entity_id, &id] (esphome::api::HomeassistantServiceResponse* resp) {
+        this->send_event_("data_request", [&entity_id, &id, this](esphome::api::HomeassistantServiceResponse* resp) {
             esphome::api::HomeassistantServiceMap entry_;
             entry_.key = "id";
             entry_.value = entity_id;
@@ -1240,6 +1240,13 @@ void LvglDashboard::setup() {
             entry__.key = "op";
             entry__.value = id;
             resp->data.push_back(entry__);
+
+            if (this->little_endian_) {
+                esphome::api::HomeassistantServiceMap entry_;
+                entry_.key = "le";
+                entry_.value = "1";
+                resp->data.push_back(entry_);
+            }
         });
     });
     this->more_info_page_->set_load_finished_listener([this]() {
@@ -1560,7 +1567,7 @@ void LvglDashboard::send_event_(std::string type, std::function<void(esphome::ap
 }
 
 void LvglDashboard::send_event(int page, int item, std::string type) {
-    this->send_event_(type, [&page, &item] (esphome::api::HomeassistantServiceResponse* resp) {
+    this->send_event_(type, [&page, &item, this] (esphome::api::HomeassistantServiceResponse* resp) {
         if (page != -1) {
             esphome::api::HomeassistantServiceMap entry_;
             entry_.key = "page";
@@ -1571,6 +1578,12 @@ void LvglDashboard::send_event(int page, int item, std::string type) {
             esphome::api::HomeassistantServiceMap entry_;
             entry_.key = "item";
             entry_.value = std::to_string(item);
+            resp->data.push_back(entry_);
+        }
+        if (this->little_endian_) {
+            esphome::api::HomeassistantServiceMap entry_;
+            entry_.key = "le";
+            entry_.value = "1";
             resp->data.push_back(entry_);
         }
     });

@@ -34,6 +34,7 @@ CONF_DASHBOARD_RESET = "dashboard_reset"
 CONF_VERTICAL = "vertical"
 CONF_COMPONENTS = "components"
 CONF_TYPE = "type"
+CONF_LITTLE_ENDIAN = "little_endian"
 
 DASHBOARD_RESET_DEF = 10
 
@@ -59,6 +60,7 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_BACKLIGHT): cv.use_id(switch.Switch),
         cv.Optional(CONF_RTTTL): cv.use_id(rtttl.Rtttl),
         cv.Optional(CONF_VERTICAL, default=False): cv.boolean,
+        cv.Optional(CONF_LITTLE_ENDIAN, default=False): cv.boolean,
         cv.Optional(CONF_DASHBOARD_RESET, default=DASHBOARD_RESET_DEF): cv.positive_int,
         cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(cv.use_id(cg.Component)),
     })
@@ -82,6 +84,7 @@ async def to_code(config):
     lvgl.defines.add_define("LV_FONT_MONTSERRAT_28")
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_vertical(config[CONF_VERTICAL]))
+    cg.add(var.set_little_endian(config[CONF_LITTLE_ENDIAN]))
     cg.add(var.set_config(config[CONF_WIDTH], config[CONF_HEIGHT]))
     cg.add(var.set_lvgl(await cg.get_variable(config[CONF_LVGL])))
     cg.add(var.set_api_server(await cg.get_variable(config[CONF_API])))

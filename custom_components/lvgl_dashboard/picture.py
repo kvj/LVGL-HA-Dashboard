@@ -15,7 +15,7 @@ def bytes_to_scaled(data: bytes, size: int) -> bytes:
         return fout.getvalue()
 
 
-def bytes_to_565_ints(data: bytes, content_type: str, size: int):
+def bytes_to_565_ints(data: bytes, content_type: str, size: int, le: bool = False):
     with io.BytesIO(data) as f:
         image = Image.open(f, formats=["JPEG", "PNG"])
         image.thumbnail((size, size))
@@ -34,8 +34,11 @@ def bytes_to_565_ints(data: bytes, content_type: str, size: int):
         _LOGGER.debug(f"bytes_to_565: pixels {image.width}x{image.height} ~ {len(out_bytes)}, {content_type}, {bp}")
         result = []
         for i in range(0, pixels, 2):
-            result.append(struct.unpack("<i", struct.pack(">I", (to_565(i) << 16) | to_565(i+1)))[0])
-        _LOGGER.debug(f"bytes_to_565: int32s {image.width}x{image.height} ~ {len(result)}")
+            if le:
+                result.append(struct.unpack("<i", struct.pack("<I", (to_565(i+1) << 16) | to_565(i)))[0])
+            else:
+                result.append(struct.unpack("<i", struct.pack(">I", (to_565(i) << 16) | to_565(i+1)))[0])
+        _LOGGER.debug(f"bytes_to_565: int32s {image.width}x{image.height} ~ {len(result)}, {le}")
         return ((image.width, image.height), result)
 
 def get_entity_by_entity_id(hass: HomeAssistant, entity_id: str) -> image.ImageEntity | None:
