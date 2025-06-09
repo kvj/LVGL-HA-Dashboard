@@ -31,7 +31,7 @@ def bytes_to_565_ints(data: bytes, content_type: str, size: int, le: bool = Fals
             G = byte_value(bp * i + 1) >> 2
             B = byte_value(bp * i + 2) >> 3
             return (R << 11) | (G << 5) | B
-        _LOGGER.debug(f"bytes_to_565: pixels {image.width}x{image.height} ~ {len(out_bytes)}, {content_type}, {bp}")
+        _LOGGER.debug(f"bytes_to_565: pixels {image.width}x{image.height} ~ {len(out_bytes)}, {content_type}, {bp}, {size}")
         result = []
         for i in range(0, pixels, 2):
             if le:

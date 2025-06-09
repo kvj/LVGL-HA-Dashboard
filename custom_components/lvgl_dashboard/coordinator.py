@@ -194,7 +194,7 @@ class Coordinator(DataUpdateCoordinator):
 
     async def async_send_picture_data(self, service: str, entity_id: str, scale: int, le: bool, cb):
         state = self.state_by_entity_id(entity_id)
-        size, data = await self.async_picture_from_state(entity_id, state, int(scale * self.get_theme_scale()), le)
+        size, data = await self.async_picture_from_state(entity_id, state, scale, le)
         if size and data:
             offset = 0
             while offset < len(data):
@@ -236,6 +236,10 @@ class Coordinator(DataUpdateCoordinator):
         theme_conf = self._g(self._dashboard, "theme", {})
         return self._g(theme_conf, "scale", 1.0)
     
+    def get_more_page_image_scale(self):
+        theme_conf = self._g(self._dashboard, "theme", {})
+        return theme_conf.get("more_page_image_size") if "more_page_image_size" in theme_conf else int(PICTURE_DEF_SCALE_MORE * self.get_theme_scale())
+
     async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
         state = self.state_by_entity_id(entity_id)
@@ -429,7 +433,6 @@ class Coordinator(DataUpdateCoordinator):
         features = []
         if not state:
             return
-        theme_scale = self.get_theme_scale()
         [domain, name] = entity_id.split(".")
         if domain in TOGGLABLE_DOMAINS:
             features.append({"type": "toggle", "id": "toggle", "value": state.state == "on"})
@@ -450,7 +453,7 @@ class Coordinator(DataUpdateCoordinator):
                 "value": state.state,
             })
         if domain in IMAGE_DOMAINS:
-            size, data = await self.async_picture_from_state(entity_id, state, int(PICTURE_DEF_SCALE_MORE * theme_scale))
+            size, data = await self.async_picture_from_state(entity_id, state, self.get_more_page_image_scale())
             if size and data:
                 features.append({
                     "type": "image", 
@@ -607,14 +610,14 @@ class Coordinator(DataUpdateCoordinator):
                 await self.async_exec_action(self._g(item_def, "on_long_tap"), item_def)
             if type_ == "data_request":
                 entity_id_ = self._g(item_def, "entity_id")
-                scale = self._g(item_def, "scale", PICTURE_DEF_SCALE_ITEM)
+                scale = int(self._g(item_def, "scale", PICTURE_DEF_SCALE_ITEM) * self.get_theme_scale())
                 await self.async_send_picture_data("set_data", entity_id_, scale, le, lambda: {"item": item, "page": page})
         if entity_id and op:
             if type_ == "change":
                 value = int(event.get("value", 0))
                 await self.async_exec_change_action(entity_id, op, value)
             if type_ == "data_request":
-                await self.async_send_picture_data("set_data_more", entity_id, PICTURE_DEF_SCALE_MORE, le, lambda: {})
+                await self.async_send_picture_data("set_data_more", entity_id, self.get_more_page_image_scale(), le, lambda: {})
 
     def _connect_to_esphome_device(self, entry_data):
         def _on_device_update():
