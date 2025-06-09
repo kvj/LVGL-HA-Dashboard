@@ -1,0 +1,102 @@
+esphome:
+  platformio_options:
+    build_flags: "-std=c++17"
+    build_unflags: "-std=gnu++11"
+
+esp32:
+  board: esp32-p4-evboard
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    version: 5.4.1
+    platform_version: 55.03.30-alpha1
+    advanced:
+      enable_idf_experimental_features: yes
+
+external_components:    
+  - source: github://pr#8833
+    components: [ debug, esp32, logger, esp32_hosted ]
+    refresh: 0s
+  - source: github://pr#9009
+    components: [esp_ldo, psram]
+    refresh: 0s
+  - source: github://kvj/esphome@jd9365_gsl3680
+    refresh: 0s
+    components: [jd9365, gsl3680]
+
+esp32_hosted:
+  variant: ESP32C6
+  reset_pin: GPIO54
+  cmd_pin: GPIO19
+  clk_pin: GPIO18
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17
+
+ota:
+  platform: esphome
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: IP Address
+
+button:
+  - platform: restart
+    name: "Reboot"
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+switch:
+  - id: backlight_
+    platform: gpio
+    pin: GPIO23
+    restore_mode: ALWAYS_ON
+    name: Backlight
+    entity_category: config
+    icon: "mdi:brightness-6"
+
+psram:
+  speed: 200MHz
+
+display:
+  - platform: jd9365
+    reset_pin: GPIO27
+    auto_clear_enabled: false
+    update_interval: never
+    rotation: 90
+
+i2c:
+  sda: GPIO7
+  scl: GPIO8
+  scan: true
+  frequency: 400kHz
+
+output:
+  - platform: template
+    id: fake_output_
+    type: float
+    write_action: []
+
+rtttl:
+  - id: rtttl_
+    output: fake_output_
+
+touchscreen:
+  - platform: gsl3680
+    id: touchscreen_
+    reset_pin: GPIO22
+    interrupt_pin: GPIO21
+    transform:
+      swap_xy: true
+      mirror_y: true
+    # on_touch:
+    #   - lambda: |-
+    #       ESP_LOGI("gsl3680", "Touch: %d x %d, count = %d", touch.x, touch.y, touches.size());
+    # on_release:
+    #   - lambda: |-
+    #       ESP_LOGI("gsl3680", "Release:");
+

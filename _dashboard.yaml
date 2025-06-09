@@ -150,6 +150,7 @@ binary_sensor:
     name: Touchscreen
 
 lvgl:
+  byte_order: ${endian}
   touchscreens:
     - touchscreen_id: touchscreen_
   pages: []

@@ -7,12 +7,12 @@ external_components:
   - source: github://kvj/esphome@sdl_nice_window
     refresh: 30s
     components:
-    - sdl
+      - sdl
 
 host:
 
 logger:
-  level: DEBUG
+  level: INFO
 
 touchscreen:
   platform: sdl
@@ -23,7 +23,7 @@ display:
     auto_clear_enabled: false
     update_interval: never
     resizable: false
-    on_top: true
+    on_top: false
     title: Home Assistant
     dimensions:
       width: 240
@@ -36,7 +36,7 @@ time:
 substitutions:
 
 packages:
-  common: !include {file: _dashboard.yaml, vars: {api_port: 6054}}
+  common: !include {file: _dashboard.yaml, vars: {api_port: 6054, endian: big_endian}}
 
 output:
   - platform: template

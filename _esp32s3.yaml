@@ -1,0 +1,148 @@
+esphome:
+  platformio_options:
+    board_build.flash_mode: dio
+    build_flags: "-DBOARD_HAS_PSRAM -std=c++17"
+    build_unflags: "-std=gnu++11"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: "y"
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_LV_MEM_CUSTOM: "y"
+      CONFIG_LV_MEMCPY_MEMSET_STD: "y"
+      CONFIG_LV_ATTRIBUTE_FAST_MEM: "y"
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+ota:
+  platform: esphome
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: IP Address
+
+button:
+  - platform: restart
+    name: "Reboot"
+
+i2c:
+  - id: bus_a
+    sda: GPIO19
+    scl: GPIO45
+
+light:
+  - platform: monochromatic
+    output: backlight_pin_
+    id: backlight
+    default_transition_length: 100ms
+
+switch:
+  - platform: template
+    lambda: |-
+      return id(backlight).remote_values.is_on();
+    id: backlight_
+    name: Backlight
+    entity_category: config
+    icon: "mdi:brightness-6"
+    turn_on_action:
+      - light.turn_on:
+          id: backlight
+          brightness: 100%
+    turn_off_action:
+      - light.turn_off: backlight
+    restore_mode: ALWAYS_ON
+
+touchscreen:
+  platform: gt911
+  transform:
+    swap_xy: ${ts_swap_xy}
+    mirror_x: ${ts_mirror_x}
+    mirror_y: ${ts_mirror_y}
+  id: touchscreen_
+  display: st7701s_disp
+
+spi:
+  - id: lcd_spi
+    clk_pin: GPIO48
+    mosi_pin: GPIO47
+
+display:
+  - platform: st7701s
+    id: st7701s_disp
+    update_interval: never
+    auto_clear_enabled: false
+    data_rate: 2MHz
+    spi_mode: MODE3
+    color_order: RGB
+    invert_colors: false
+    dimensions:
+      width: 480
+      height: 480
+    rotation: ${display_rotation}
+    transform:
+      mirror_x: false
+      mirror_y: false
+    cs_pin: 39
+    de_pin: 18
+    hsync_pin: 16
+    vsync_pin: 17
+    pclk_pin: 21
+    pclk_frequency: 12MHz
+    pclk_inverted: False
+    hsync_pulse_width: 8
+    hsync_front_porch: 10
+    hsync_back_porch: 20
+    vsync_pulse_width: 8
+    vsync_front_porch: 10
+    vsync_back_porch: 10
+    init_sequence:
+      - 1
+      # Custom sequences are an array, first byte is command, the rest are data.
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10] # CMD2_BKSEL_BK0
+      - [0xCD, 0x00] # disable MDT flag
+    data_pins:
+      red:
+        - 11 #r1
+        - 12 #r2
+        - 13 #r3
+        - 14 #r4
+        - 0 #r5
+      green:
+        - 8 #g0
+        - 20 #g1
+        - 3 #g2
+        - 46 #g3
+        - 9 #g4
+        - 10 #g5
+      blue:
+        - 4 #b1
+        - 5 #b2
+        - 6 #b3
+        - 7 #b4
+        - 15 #b5
+
+output:
+  - platform: ledc
+    pin: GPIO38
+    id: backlight_pin_
+    frequency: 100Hz
+  - platform: template
+    id: fake_output_
+    type: float
+    write_action: []
+
+rtttl:
+  - id: buzzer
+    output: fake_output_

@@ -8,4 +8,4 @@ __pycache__
 
 i2c_test.yaml
 switch_*.*
-esp32s3.yaml
+dashboard_*.*
