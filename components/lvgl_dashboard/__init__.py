@@ -82,6 +82,7 @@ async def to_code(config):
     lvgl.defines.add_define("USE_LVGL_FONT")
     lvgl.defines.add_define("LV_FONT_MONTSERRAT_12")
     lvgl.defines.add_define("LV_FONT_MONTSERRAT_28")
+    cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_vertical(config[CONF_VERTICAL]))
     cg.add(var.set_little_endian(config[CONF_LITTLE_ENDIAN]))

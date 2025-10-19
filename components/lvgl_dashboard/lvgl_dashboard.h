@@ -490,7 +490,7 @@ class LvglDashboard : virtual public LvglItemEventListener, virtual public LvglP
 
         void show_page(int index);
 
-        void send_event_(std::string type, std::function<void(esphome::api::HomeassistantServiceResponse*)> &&fn);
+        void send_event_(std::string type, std::function<void(esphome::api::HomeassistantActionRequest*)> &&fn);
         void send_event(int page, int item, std::string type);
         void send_more_page_event(bool visible);
 

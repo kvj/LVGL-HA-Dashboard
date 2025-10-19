@@ -1186,6 +1186,12 @@ void LvglDashboard::set_vertical(bool vertical) {
     boot_theme_.switch_height = switch_height;
 }
 
+static const std::string EVENT_KEY_ID = "id";
+static const std::string EVENT_KEY_OP = "op";
+static const std::string EVENT_KEY_VALUE = "value";
+static const std::string EVENT_KEY_LE = "le";
+
+
 void LvglDashboard::setup() {
      this->page_ = lv_scr_act();
      theme_.width = this->width_;
@@ -1212,38 +1218,38 @@ void LvglDashboard::setup() {
 
     this->more_info_page_ = new MoreInfoPage();
     this->more_info_page_->set_change_listener([this](std::string entity_id, std::string id, int value) {
-        this->send_event_("change", [&entity_id, &id, &value] (esphome::api::HomeassistantServiceResponse* resp) {
+        this->send_event_("change", [&entity_id, &id, &value] (esphome::api::HomeassistantActionRequest* resp) {
             esphome::api::HomeassistantServiceMap entry_;
-            entry_.key = "id";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_ID));
             entry_.value = entity_id;
             resp->data.push_back(entry_);
 
             esphome::api::HomeassistantServiceMap entry__;
-            entry__.key = "op";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_OP));
             entry__.value = id;
             resp->data.push_back(entry__);
 
             esphome::api::HomeassistantServiceMap entry___;
-            entry___.key = "value";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_VALUE));
             entry___.value = std::to_string(value);
             resp->data.push_back(entry___);
         });
     });
     this->more_info_page_->set_data_request_listener([this](std::string entity_id, std::string id) {
-        this->send_event_("data_request", [&entity_id, &id, this](esphome::api::HomeassistantServiceResponse* resp) {
+        this->send_event_("data_request", [&entity_id, &id, this](esphome::api::HomeassistantActionRequest* resp) {
             esphome::api::HomeassistantServiceMap entry_;
-            entry_.key = "id";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_ID));
             entry_.value = entity_id;
             resp->data.push_back(entry_);
 
             esphome::api::HomeassistantServiceMap entry__;
-            entry__.key = "op";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_OP));
             entry__.value = id;
             resp->data.push_back(entry__);
 
             if (this->little_endian_) {
                 esphome::api::HomeassistantServiceMap entry_;
-                entry_.key = "le";
+                entry_.set_key(esphome::StringRef(EVENT_KEY_LE));
                 entry_.value = "1";
                 resp->data.push_back(entry_);
             }
@@ -1261,7 +1267,7 @@ void LvglDashboard::setup() {
 
     for (auto entry : this->components_) {
         if (entry->is_failed()) {
-            ESP_LOGW(TAG, "At least one component has failed, rebooting: [%s]", entry->get_component_source());
+            ESP_LOGW(TAG, "At least one component has failed, rebooting.");
             esphome::delay(100);
             App.safe_reboot();
             return;
@@ -1338,10 +1344,12 @@ void LvglDashboard::set_buttons() {
     this->update_connection_state();
 }
 
+static const std::string EVENT_KEY_VISIBLE = "visible";
+
 void LvglDashboard::send_more_page_event(bool visible) {
-    this->send_event_("more", [this, &visible](esphome::api::HomeassistantServiceResponse* resp) {
+    this->send_event_("more", [this, &visible](esphome::api::HomeassistantActionRequest* resp) {
         esphome::api::HomeassistantServiceMap entry_;
-        entry_.key = "visible";
+        entry_.set_key(esphome::StringRef(EVENT_KEY_VISIBLE));
         entry_.value = visible? "1": "0";
         resp->data.push_back(entry_);
     });
@@ -1552,37 +1560,43 @@ void LvglDashboard::update() {
     this->update_connection_state();
 }
 
-void LvglDashboard::send_event_(std::string type, std::function<void(esphome::api::HomeassistantServiceResponse*)> &&fn) {
-    esphome::api::HomeassistantServiceResponse resp;
+static const std::string EVENT_NAME = "esphome.lvgl_dashboard_event";
+static const std::string EVENT_KEY_TYPE = "type";
+
+void LvglDashboard::send_event_(std::string type, std::function<void(esphome::api::HomeassistantActionRequest*)> &&fn) {
+    esphome::api::HomeassistantActionRequest req;
     esphome::api::HomeassistantServiceMap entry_;
-    entry_.key = "type";
+    entry_.set_key(esphome::StringRef(EVENT_KEY_TYPE));
     entry_.value = type;
-    resp.data.push_back(entry_);
+    req.data.push_back(entry_);
 
-    fn(&resp);
+    fn(&req);
 
-    resp.service = "esphome.lvgl_dashboard_event";
-    resp.is_event = true;
-    this->api_server_->send_homeassistant_service_call(resp);
+    req.set_service(esphome::StringRef(EVENT_NAME));
+    req.is_event = true;
+    this->api_server_->send_homeassistant_action(req);
 }
 
+static const std::string EVENT_KEY_PAGE = "page";
+static const std::string EVENT_KEY_ITEM = "item";
+
 void LvglDashboard::send_event(int page, int item, std::string type) {
-    this->send_event_(type, [&page, &item, this] (esphome::api::HomeassistantServiceResponse* resp) {
+    this->send_event_(type, [&page, &item, this] (esphome::api::HomeassistantActionRequest* resp) {
         if (page != -1) {
             esphome::api::HomeassistantServiceMap entry_;
-            entry_.key = "page";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_PAGE));
             entry_.value = std::to_string(page);
             resp->data.push_back(entry_);
         }
         if (item != -1) {
             esphome::api::HomeassistantServiceMap entry_;
-            entry_.key = "item";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_ITEM));
             entry_.value = std::to_string(item);
             resp->data.push_back(entry_);
         }
         if (this->little_endian_) {
             esphome::api::HomeassistantServiceMap entry_;
-            entry_.key = "le";
+            entry_.set_key(esphome::StringRef(EVENT_KEY_LE));
             entry_.value = "1";
             resp->data.push_back(entry_);
         }

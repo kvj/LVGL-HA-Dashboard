@@ -22,8 +22,10 @@ display:
   - platform: sdl
     auto_clear_enabled: false
     update_interval: never
-    resizable: false
-    on_top: false
+    window_options:
+      resizable: false
+      always_on_top: true
+    allow_screensaver: true
     title: Home Assistant
     dimensions:
       width: 240
@@ -32,8 +34,6 @@ display:
 time:
   - platform: host
     timezone: Europe/Berlin
-
-substitutions:
 
 packages:
   common: !include {file: _dashboard.yaml, vars: {api_port: 6054, endian: big_endian}}
