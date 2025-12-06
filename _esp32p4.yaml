@@ -1,28 +1,24 @@
 esphome:
-  platformio_options:
-    build_flags: "-std=c++17"
-    build_unflags: "-std=gnu++11"
 
 esp32:
   board: esp32-p4-evboard
-  cpu_frequency: 360MHz
+  cpu_frequency: 400MHz
+  flash_size: 16MB
   framework:
     type: esp-idf
-    version: 5.4.1
-    platform_version: 55.03.30-alpha1
+    version: 5.4.2
+    # version: 5.4.1
+    # platform_version: 55.03.30-alpha1
     advanced:
       enable_idf_experimental_features: yes
 
 external_components:    
-  - source: github://pr#8833
-    components: [ debug, esp32, logger, esp32_hosted ]
-    refresh: 0s
-  - source: github://pr#9009
-    components: [esp_ldo, psram]
-    refresh: 0s
   - source: github://kvj/esphome@jd9365_gsl3680
     refresh: 0s
     components: [jd9365, gsl3680]
+  # - source: ../../esphome-dev/esphome/components
+  #   refresh: 0s
+  #   components: [gsl3680]
 
 esp32_hosted:
   variant: ESP32C6
@@ -33,6 +29,10 @@ esp32_hosted:
   d1_pin: GPIO15
   d2_pin: GPIO16
   d3_pin: GPIO17
+  active_high: true
+
+# network:
+#   enable_ipv6: true
 
 ota:
   platform: esphome
@@ -68,6 +68,7 @@ display:
     auto_clear_enabled: false
     update_interval: never
     rotation: 90
+    backlight: backlight_
 
 i2c:
   sda: GPIO7
@@ -92,11 +93,3 @@ touchscreen:
     interrupt_pin: GPIO21
     transform:
       swap_xy: true
-      mirror_y: true
-    # on_touch:
-    #   - lambda: |-
-    #       ESP_LOGI("gsl3680", "Touch: %d x %d, count = %d", touch.x, touch.y, touches.size());
-    # on_release:
-    #   - lambda: |-
-    #       ESP_LOGI("gsl3680", "Release:");
-

@@ -4,7 +4,7 @@ PLATFORMS = ["button", "sensor", "binary_sensor"]
 CONF_DASHBOARD = "dashboard"
 CONF_IS_BROWSER = "is_browser"
 
-TOGGLABLE_DOMAINS = ["vacuum", "climate", "input_boolean", "media_player", "light", "remote", "fan", "water_heater", "switch", "alert"]
+TOGGLABLE_DOMAINS = ["vacuum", "climate", "input_boolean", "media_player", "light", "remote", "fan", "water_heater", "switch"]
 SLIDER_DOMAINS = ["number", "input_number"]
 IMAGE_DOMAINS = ["image", "camera"]
 

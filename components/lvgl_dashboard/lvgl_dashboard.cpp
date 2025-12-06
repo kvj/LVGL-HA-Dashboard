@@ -26,6 +26,8 @@ ThemeDef boot_theme_ = {
     .padding = LVD_PADDING,
     .radius = LVD_BORDER_RADIUS,
     .layout_gap = LVD_LAYOUT_GAP,
+    .tile_toggle_radius = LVD_TILE_TOGGLE_RADIUS,
+    .tile_badge_radius = LVD_TILE_BADGE_RADIUS,
 };
 
 ThemeDef theme_ = boot_theme_;
@@ -498,13 +500,19 @@ MdiFont* MdiFontCapable::get_font(int size) {
     return font;
 }
 
-void MdiFontCapable::set_icon(lv_obj_t* obj, JsonObject icon_data) {
+void MdiFontCapable::set_icon(lv_obj_t* obj, JsonObject icon_data, bool hide_default) {
     int size = icon_data["size"];
+    bool default_icon = icon_data["def"];
     auto* font = this->get_font(size);
     auto code = font->add_glyph(icon_data["name"], icon_data["data"]);
     lv_obj_set_style_text_font(obj, font->get_lv_font(), 0);
     char txt[2] = {(char)code, 0};
     lv_label_set_text(obj, (char *)&txt);
+    if (default_icon && hide_default) {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void MdiFontCapable::clear() {
@@ -513,6 +521,16 @@ void MdiFontCapable::clear() {
         free(it.second);
     }
     this->fonts_.clear();
+}
+
+lv_color_t DashboardItem::parse_color(std::string color, lv_color_t def_color) {
+    if (color == "on") {
+        return theme_.btn_on_color;
+    }
+    if (color.size() == 7) {
+        return lv_color_hex((uint32_t)std::stol(color.substr(1), nullptr, 16));
+    }
+    return def_color;
 }
 
 void DashboardItem::set_bg_color(lv_obj_t* obj, JsonObject data) {
@@ -858,6 +876,139 @@ void SensorItem::setup(lv_obj_t* root) {
     lv_label_set_text(unit, "");
 }
 
+void TileItem::setup(lv_obj_t* root) {
+    DashboardItem::setup(root);
+    lv_obj_set_style_bg_color(this->root_, theme_.panel_bg_color, 0);
+    lv_obj_set_style_border_width(this->root_, 1, 0);
+    lv_obj_set_style_border_color(this->root_, theme_.btn_bg_color, 0);
+    subscribe_to_tap_events_(this->root_, this);
+}
+
+void TileItem::set_value(JsonObject data) {
+    lv_obj_clean(this->root_);
+    bool vertical = data["v"];
+    std::string features = data["f"];
+    if (features == "b") {
+        this->main_col_dsc_[1] = LV_GRID_TEMPLATE_LAST;
+    } else {
+        this->main_col_dsc_[1] = LV_GRID_FR(1);
+        this->main_col_dsc_[2] = LV_GRID_TEMPLATE_LAST;
+    }
+    if (vertical) {
+        this->main_row_dsc_[0] = LV_GRID_FR(2);
+    } else {
+        this->main_row_dsc_[0] = LV_GRID_FR(1);
+    }
+    this->main_row_dsc_[1] = LV_GRID_TEMPLATE_LAST;
+
+    lv_obj_set_style_grid_column_dsc_array(this->root_, this->main_col_dsc_, 0);
+    lv_obj_set_style_grid_row_dsc_array(this->root_, this->main_row_dsc_, 0);
+    lv_obj_set_layout(this->root_, LV_LAYOUT_GRID);
+    this->tile_ = lv_obj_create(this->root_);
+    lv_obj_add_flag(this->tile_, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_remove_style_all(this->tile_);
+    lv_obj_set_size(this->tile_, lv_pct(100), LV_SIZE_CONTENT);
+    if (vertical) {
+        this->tile_col_dsc_[0] = LV_GRID_FR(1);
+        this->tile_col_dsc_[1] = LV_GRID_TEMPLATE_LAST;
+        
+        this->tile_row_dsc_[2] = LV_GRID_CONTENT;
+        this->tile_row_dsc_[3] = LV_GRID_TEMPLATE_LAST;
+    } else {
+        this->tile_col_dsc_[0] = LV_GRID_CONTENT;
+        this->tile_col_dsc_[1] = LV_GRID_FR(1);
+
+        this->tile_row_dsc_[2] = LV_GRID_TEMPLATE_LAST;
+    }
+    lv_obj_set_style_grid_column_dsc_array(this->tile_, this->tile_col_dsc_, 0);
+    lv_obj_set_style_grid_row_dsc_array(this->tile_, this->tile_row_dsc_, 0);
+    lv_obj_set_layout(this->tile_, LV_LAYOUT_GRID);
+    lv_obj_set_grid_cell(this->tile_, LV_GRID_ALIGN_STRETCH, 0, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+
+    lv_obj_t* toggle = lv_obj_create(this->tile_);
+    lv_obj_add_flag(toggle, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_remove_style_all(toggle);
+    lv_obj_set_size(toggle, theme_.tile_toggle_radius * 2, theme_.tile_toggle_radius * 2);
+    lv_obj_set_style_bg_color(toggle, theme_.btn_bg_color, 0);
+    bool t = data["t"];
+    if (t) lv_obj_set_style_bg_opa(toggle, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(toggle, theme_.tile_toggle_radius, 0);
+
+    lv_obj_t* icon = lv_label_create(toggle);
+    lv_obj_align(icon, LV_ALIGN_CENTER, 0, 0);
+    if (vertical) {
+        lv_obj_set_grid_cell(toggle, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_START, 0, 1);
+    } else {
+        lv_obj_set_grid_cell(toggle, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_START, 0, 2);
+    }
+    lv_label_set_text(icon, "");
+    icons_->set_icon(icon, data["icon"]);
+
+    this->set_text_color(icon, data);
+
+    if (data.containsKey("badge")) {
+        lv_obj_t* badge = lv_obj_create(toggle);
+        lv_obj_add_flag(badge, LV_OBJ_FLAG_EVENT_BUBBLE);
+        lv_obj_remove_style_all(badge);
+        lv_obj_set_size(badge, theme_.tile_badge_radius * 2, theme_.tile_badge_radius * 2);
+        lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(badge, this->parse_color(data["badge"], theme_.btn_on_color), 0);
+        lv_obj_set_style_radius(badge, theme_.tile_badge_radius, 0);
+        lv_obj_set_align(badge, LV_ALIGN_TOP_RIGHT);
+    }
+
+
+    std::string name = data["name"];
+    std::string value = data["value"];
+    if (name != "") {
+        lv_obj_t* label = lv_label_create(this->tile_);
+        lv_obj_set_style_pad_bottom(label, theme_.padding / 2, 0);
+        if (vertical) {
+            lv_obj_set_grid_cell(label, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, 1, 1);
+            lv_obj_set_style_pad_top(label, theme_.padding, 0);
+        } else {
+            lv_obj_set_grid_cell(label, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, 0, 1);
+            lv_obj_set_style_pad_left(label, theme_.padding, 0);
+        }
+        lv_obj_set_style_text_font(label, lv_theme_get_font_normal(this->root_), 0);
+        lv_label_set_text(label, name.c_str());
+    }
+    if (value != "") {
+        lv_obj_t* label = lv_label_create(this->tile_);
+        if (vertical)
+            lv_obj_set_grid_cell(label, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, 2, 1);
+        else {
+            lv_obj_set_grid_cell(label, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_CENTER, 1, 1);
+            lv_obj_set_style_pad_left(label, theme_.padding, 0);
+        }
+        lv_obj_set_style_text_font(label, lv_theme_get_font_normal(this->root_), 0);
+        lv_label_set_text(label, value.c_str());
+    }
+}
+
+void HeaderItem::setup(lv_obj_t* root) {
+    DashboardItem::setup(root);
+    lv_obj_set_style_bg_opa(this->root_, LV_OPA_TRANSP, 0);
+
+    lv_obj_set_style_grid_column_dsc_array(this->root_, this->main_col_dsc_, 0);
+    lv_obj_set_style_grid_row_dsc_array(this->root_, this->main_row_dsc_, 0);
+    lv_obj_set_layout(this->root_, LV_LAYOUT_GRID);
+
+    lv_obj_t* icon = lv_label_create(this->root_);
+    lv_obj_set_grid_cell(icon, LV_GRID_ALIGN_START, 0, 1, LV_GRID_ALIGN_END, 0, 1);
+    lv_label_set_text(icon, "");
+
+    lv_obj_t* label = lv_label_create(this->root_);
+    // lv_obj_set_style_pad_bottom(label, theme_.padding / 2, 0);
+    lv_obj_set_style_text_font(label, lv_theme_get_font_normal(this->root_), 0);
+    lv_obj_set_grid_cell(label, LV_GRID_ALIGN_START, 1, 1, LV_GRID_ALIGN_END, 0, 1);
+}
+
+void HeaderItem::set_value(JsonObject data) {
+    icons_->set_icon(lv_obj_get_child(this->root_, 0), data["icon"], true);
+    lv_label_set_text(lv_obj_get_child(this->root_, 1), data["name"]);
+}
+
 void DashboardItem::setup(lv_obj_t* root) {
     this->root_ = lv_btn_create(root);
     lv_obj_remove_style_all(this->root_);
@@ -882,6 +1033,8 @@ DashboardItem* DashboardItem::new_instance(ItemDef* def) {
     if (layout == "sensor") return new SensorItem();
     if (layout == "picture") return new ImageItem();
     if (layout == "layout") return new LayoutItem();
+    if (layout == "tile") return new TileItem();
+    if (layout == "heading") return new HeaderItem();
     return 0;
 }
 
@@ -1436,6 +1589,8 @@ void LvglDashboard::service_set_theme(std::string json_value) {
         LVD_SET_THEME_COORD("padding", padding);
         LVD_SET_THEME_COORD("radius", radius);
         LVD_SET_THEME_COORD("layout_gap", layout_gap);
+        LVD_SET_THEME_COORD("tile_toggle_radius", tile_toggle_radius);
+        LVD_SET_THEME_COORD("tile_badge_radius", tile_badge_radius);
     });
     this->init(this->page_, false);
 }

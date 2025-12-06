@@ -33,8 +33,6 @@ time:
   - platform: host
     timezone: Europe/Berlin
 
-substitutions:
-
 packages:
   common: !include {file: _dashboard.yaml, vars: {api_port: 6053, endian: big_endian}}
 

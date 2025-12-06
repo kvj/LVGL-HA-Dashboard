@@ -96,6 +96,12 @@ class DashboardComponent : public esphome::Component, public esphome::binary_sen
 #ifndef LVD_CONNECT_LINE_COLOR
     #define LVD_CONNECT_LINE_COLOR lv_palette_main(LV_PALETTE_RED)
 #endif
+#ifndef LVD_TILE_TOGGLE_RADIUS
+    #define LVD_TILE_TOGGLE_RADIUS 20
+#endif
+#ifndef LVD_TILE_BADGE_RADIUS
+    #define LVD_TILE_BADGE_RADIUS 7
+#endif
 
 typedef struct {
     lv_coord_t width;
@@ -118,6 +124,8 @@ typedef struct {
     lv_coord_t padding;
     lv_coord_t radius;
     lv_coord_t layout_gap;
+    lv_coord_t tile_toggle_radius;
+    lv_coord_t tile_badge_radius;
 } ThemeDef;
 
 typedef struct {
@@ -215,7 +223,7 @@ class MdiFontCapable {
         MdiFont* get_font(int size);
 
     public:
-        void set_icon(lv_obj_t* obj, JsonObject icon_data);
+        void set_icon(lv_obj_t* obj, JsonObject icon_data, bool hide_default = false);
         void clear();
 };
 
@@ -248,6 +256,7 @@ class DashboardItem {
         void set_bg_color(lv_obj_t* obj, JsonObject data, bool def_color);
         void set_text_color(lv_obj_t* obj, JsonObject data);
         void set_font(lv_obj_t* obj, JsonObject data);
+        lv_color_t parse_color(std::string color, lv_color_t def_color);
 
         void request_data();
 
@@ -300,6 +309,40 @@ class LayoutItem : public DashboardItem {
 };
 
 class SensorItem : public DashboardItem {
+    public:
+        void setup(lv_obj_t* root) override;
+        void set_value(JsonObject data) override;
+};
+
+class TileItem : public DashboardItem {
+    private:
+        lv_coord_t main_col_dsc_[3] = {
+            LV_GRID_FR(1), LV_GRID_FR(1), 
+            LV_GRID_TEMPLATE_LAST };
+        lv_coord_t main_row_dsc_[4] = {
+            LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), 
+            LV_GRID_TEMPLATE_LAST };
+        lv_coord_t tile_col_dsc_[3] = {
+            LV_GRID_FR(1), LV_GRID_FR(1), 
+            LV_GRID_TEMPLATE_LAST };
+        lv_coord_t tile_row_dsc_[4] = {
+            LV_GRID_CONTENT, LV_GRID_CONTENT, LV_GRID_CONTENT, 
+            LV_GRID_TEMPLATE_LAST };
+
+        lv_obj_t* tile_ = nullptr;
+    public:
+        void setup(lv_obj_t* root) override;
+        void set_value(JsonObject data) override;
+};
+
+class HeaderItem : public DashboardItem {
+    private:
+        lv_coord_t main_col_dsc_[3] = {
+            LV_GRID_CONTENT, LV_GRID_FR(1), 
+            LV_GRID_TEMPLATE_LAST };
+        lv_coord_t main_row_dsc_[2] = {
+            LV_GRID_FR(1), 
+            LV_GRID_TEMPLATE_LAST };
     public:
         void setup(lv_obj_t* root) override;
         void set_value(JsonObject data) override;

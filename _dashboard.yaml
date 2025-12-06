@@ -15,16 +15,17 @@ font:
       - "\U000F03A0" # 123
   - file:
       type: gfonts
-      family: Ubuntu Condensed
+      family: Roboto Condensed
+      # weight: 600
     id: main_font_
-    size: 16
+    size: 15
     glyphsets:
       - GF_Latin_Core
       - GF_Greek_Core
       - GF_Cyrillic_Core
   - file:
       type: gfonts
-      family: Ubuntu Condensed
+      family: Roboto Condensed
     id: small_font_
     size: 13
     glyphsets:
@@ -33,7 +34,7 @@ font:
       - GF_Cyrillic_Core
   - file:
       type: gfonts
-      family: Ubuntu Condensed
+      family: Roboto Condensed
     id: large_font_
     size: 30
     glyphsets:
@@ -42,6 +43,7 @@ font:
 api:
   id: api_server
   port: ${api_port}
+  reboot_timeout: ${api_reboot}
   on_client_connected:
     - lambda: |-
         id(dashboard_).update_connection_state();

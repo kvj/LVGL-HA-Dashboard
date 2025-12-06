@@ -60,15 +60,21 @@ class GlyphProvider:
         return offset_x, offset_y
     
     def get_icon_value(self, icon: str, size: int) -> dict:
+        default_icon = False
         if icon not in self._glyph_map:
             icon = DEFAULT_ICON
+            default_icon = True
         info = self.get_glyph(icon, size)
         rle_data = rle_encode(info.data)
         use_rle = len(rle_data) < len(info.data)
         # if use_rle:
         _LOGGER.debug(f"get_icon_value: {icon}, {use_rle}, {len(info.data)} / {len(rle_data)}")
         data = [info.x, info.y, info.width, info.height, 1 if use_rle else 0] + (rle_data if use_rle else info.data)
-        return {"name": icon, "size": size, "data": base64.standard_b64encode(bytearray(data)).decode("ascii")}
+        return {
+            "name": icon, "size": size, 
+            "data": base64.standard_b64encode(bytearray(data)).decode("ascii"), 
+            "def": default_icon
+        }
 
     def get_glyph(self, icon: str, size: int) -> GlyphInfo | None:
         glyph = self._glyph_map.get(icon)

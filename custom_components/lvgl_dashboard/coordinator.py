@@ -109,9 +109,15 @@ class Coordinator(DataUpdateCoordinator):
 
     def _dashboard_items(self):
         if self._dashboard:
+            theme_conf = self._g(self._dashboard, "theme", {})
             page_no = 0
             for page in self.all_items(self._dashboard, "pages"):
                 item_no = 0
+                cols = self._g(page, "cols", self._g(theme_conf, "cols", 4))
+                for (_, _, _, _, item) in self._sections_page(self.all_items(page, "sections"), cols):
+                    yield (page_no, page, item_no, item)
+                    item_no += 1
+
                 for item in self.all_items(page, "items"):
                     yield (page_no, page, item_no, item)
                     item_no += 1
@@ -242,6 +248,7 @@ class Coordinator(DataUpdateCoordinator):
 
     async def async_prepare_data(self, layout: str, item: dict) -> list:
         entity_id = self._g(item, "entity_id")
+        [domain, name] = entity_id.split(".") if entity_id else ("", "")
         state = self.state_by_entity_id(entity_id)
         hidden = self._g(item, "hidden", state=state)
         theme_scale = self.get_theme_scale()
@@ -268,6 +275,29 @@ class Coordinator(DataUpdateCoordinator):
                 "ctype": self._g(item, "ctype", "text"),
                 "col": self.color_from_state(state, item),
                 "font": self._to_font(item, state),
+            }
+        if layout == "tile":
+            icon = icon_from_state(self._g(item, "icon", state=state), state)
+            icon_size = int(self._g(item, "size", ICON_SMALL, state=state))
+            response = {
+                "name": self._g(item, "name", self.name_from_state(entity_id, state), state=state),
+                "icon": self._mdi_font.get_icon_value(icon, icon_size),
+                "value": str(self._g(item, "value", state.state if state else "", state=state)),
+                "col": self.color_from_state(state, item),
+                "v": self._g(item, "vertical", False),
+                "f": "b" if self._g(item, "features_position", "bottom") == "bottom" else "i",
+                "t": domain in TOGGLABLE_DOMAINS,
+                "ctype": "text",
+            }
+            if badge := self._g(item, "badge"):
+                response["badge"] = badge
+            return response
+        if layout == "heading":
+            icon = icon_from_state(self._g(item, "icon", state=state), state)
+            icon_size = int(self._g(item, "size", ICON_SMALL, state=state))
+            return {
+                "name": self._g(item, "heading", self.name_from_state(entity_id, state), state=state),
+                "icon": self._mdi_font.get_icon_value(icon, icon_size),
             }
         if layout == "picture":
             scale = self._g(item, "scale", PICTURE_DEF_SCALE_ITEM, state=state)
@@ -331,7 +361,8 @@ class Coordinator(DataUpdateCoordinator):
     async def async_send_values(self, entity_id: str | None = None, page: int | None = None):
         for (page_no, _, item_no, item) in self._dashboard_items():
             if (entity_id is None or entity_id in self._pick_entity_ids(item)) and (page is None or page == page_no):
-                if op := await self.async_prepare_data(self._g(item, "layout", "button"), item):
+                type_ = self._g(item, "type", self._g(item, "layout", "button"))
+                if op := await self.async_prepare_data(type_, item):
                     _LOGGER.debug(f"async_send_values: set_value: {page_no}, {item_no}, {op}")
                     self.call_device_service("set_value", {
                         "page": page_no, "item": item_no, "json_value": json.dumps(op)
@@ -371,6 +402,76 @@ class Coordinator(DataUpdateCoordinator):
             col = 0
             row += 1 
         return (col, row, x, y, cs, rs)
+    
+    def _item_size(self, item: dict, cols: int):
+        type_ = self._g(item, "type", self._g(item, "layout", "button"))
+        w = 2
+        h = 2
+        if type_ == "heading":
+            return (cols, 1)
+        elif type_ == "tile":
+            feat_bottom = self._g(item, "features_position", "bottom") == "bottom",
+            w = 2
+            h = 1
+            if self._g(item, "vertical", False):
+                w = 1
+                h = 2
+            else:
+                if not feat_bottom:
+                    w = 4
+        return (self._g(item, "cols", w), self._g(item, "rows", h))
+    
+    def _sections_layout(self, cols: int, items: list, compact: bool = False):
+        data = []
+        result = []
+        last_y = 0
+        for item in items:
+            w = self._g(item, "cols", 4) # Default section size
+            h = self._g(item, "rows", 1)
+            item_data = None
+            if "cards" in item:
+                [item_data, h] = self._sections_layout(w, self._g(item, "cards", []), True)
+            else:
+                [w, h] = self._item_size(item, cols)
+                item_data = item
+            sx = 0
+            sy = len(data)
+            found = False
+            for y in range(last_y, len(data)):
+                for x in range(cols):
+                    if data[y][x] == None:
+                        gap = 0
+                        for i in range(x, cols):
+                            if data[y][i] != None:
+                                break
+                            gap += 1
+                        # That's how much available
+                        if gap >= w:
+                            sx = x
+                            sy = y
+                            found = True
+                            break
+                if found:
+                    break
+            while len(data) < sy + h:
+                data.append([None for _ in range(cols)])
+            for x in range(w):
+                for y in range(h):
+                    data[sy + y][sx + x] = True
+            # _LOGGER.debug(f"_sections_layout: {sx}x{sy}x{w}x{h}: {data}")
+            last_y = sy
+            result.append((sx, sy, w, h, item_data))
+        return (result, len(data))
+
+    def _sections_page(self, items: list, cols: int):
+        (sections, _) = self._sections_layout(cols, items, False)
+        for (x, y, w, h, item_data) in sections:
+            if isinstance(item_data, list):
+                for sitem in item_data:
+                    [sx, sy, w, h, sitem_data] = sitem
+                    yield (x + sx, y + sy, w, h, sitem_data)
+            else:
+                    yield (x, y, w, h, item_data)
 
     async def async_send_dashboard(self):
         self._on_entity_state_handler = self._disable_listener(self._on_entity_state_handler)
@@ -397,6 +498,19 @@ class Coordinator(DataUpdateCoordinator):
                 "cols": cols, 
                 "items": []
             }
+            for (x, y, w, h, item) in self._sections_page(self.all_items(page, "sections"), cols):
+                type_ = self._g(item, "type", self._g(item, "layout", "button"))
+                item_data = {
+                    "layout": type_,
+                    "col": x,
+                    "row": y,
+                    "cols": w,
+                    "rows": h,
+                }
+                all_entity_ids.update(self._pick_entity_ids(item))
+                page_data["items"].append(item_data)
+            _LOGGER.debug(f"async_send_dashboard: sections: {page_data}")
+
             col = 0
             row = 0
             for item in self.all_items(page, "items"):
@@ -509,11 +623,9 @@ class Coordinator(DataUpdateCoordinator):
         return True if self._entry_data and self._entry_data.available else False
     
     def _get_item_def(self, page: int, item: int) -> dict | None:
-        pages = list(self.all_items(self._dashboard, "pages"))
-        if 0 <= page < len(pages):
-            items = list(self.all_items(pages[page], "items"))
-            if 0 <= item < len(items):
-                return items[item]
+        for (page_no, _, item_no, item_data) in self._dashboard_items():
+            if page == page_no and item == item_no:
+                return item_data
         return None
     
     async def async_exec_change_action(self, entity_id: str, op: str, value: int):
@@ -604,10 +716,17 @@ class Coordinator(DataUpdateCoordinator):
                 await self.async_exec_action(self._g(btn, "on_tap" if type_ == "button" else "on_long_tap"), btn)
         le = event.get("le") == "1"
         if item_def := self._get_item_def(page, item):
+            item_type_ = self._g(item_def, "type", self._g(item_def, "layout", "button"))
             if type_ == "click":
-                await self.async_exec_action(self._g(item_def, "on_tap"), item_def)
+                action = self._g(item_def, "on_tap")
+                if not action and item_type_ == "tile":
+                    action = { "toggle": True }
+                await self.async_exec_action(action, item_def)
             if type_ == "long_press":
-                await self.async_exec_action(self._g(item_def, "on_long_tap"), item_def)
+                action = self._g(item_def, "on_long_tap")
+                if not action and item_type_ == "tile":
+                    action = { "more": True }
+                await self.async_exec_action(action, item_def)
             if type_ == "data_request":
                 entity_id_ = self._g(item_def, "entity_id")
                 scale = int(self._g(item_def, "scale", PICTURE_DEF_SCALE_ITEM) * self.get_theme_scale())
