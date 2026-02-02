@@ -204,7 +204,7 @@ class Coordinator(DataUpdateCoordinator):
         if size and data:
             offset = 0
             while offset < len(data):
-                self.call_device_service(service, {
+                await self.async_call_device_service(service, {
                     "data": data[offset:(offset + SET_DATA_BATCH)], 
                     "offset": offset, "size": len(data),
                     **cb(),
@@ -364,7 +364,7 @@ class Coordinator(DataUpdateCoordinator):
                 type_ = self._g(item, "type", self._g(item, "layout", "button"))
                 if op := await self.async_prepare_data(type_, item):
                     _LOGGER.debug(f"async_send_values: set_value: {page_no}, {item_no}, {op}")
-                    self.call_device_service("set_value", {
+                    await self.async_call_device_service("set_value", {
                         "page": page_no, "item": item_no, "json_value": json.dumps(op)
                     })
 
@@ -487,7 +487,7 @@ class Coordinator(DataUpdateCoordinator):
             if value or value == 0:
                 theme[key] = str(value)
         _LOGGER.debug(f"async_send_dashboard: set_theme: {theme}")
-        self.call_device_service("set_theme", {"json_value": json.dumps(theme)})
+        await self.async_call_device_service("set_theme", {"json_value": json.dumps(theme)})
         all_entity_ids = set()
         page_index = 0
         for page in self.all_items(self._dashboard, "pages"):
@@ -526,11 +526,11 @@ class Coordinator(DataUpdateCoordinator):
                 all_entity_ids.update(self._pick_entity_ids(item))
                 page_data["items"].append(item_data)
             
-            self.call_device_service("add_page", {"json_value": json.dumps(page_data), "reset": page_index == 0})
+            await self.async_call_device_service("add_page", {"json_value": json.dumps(page_data), "reset": page_index == 0})
             page_index += 1
         idx = 0
         for button in self._dashboard.get("buttons", []):
-            self.call_device_service("set_button", {
+            await self.async_call_device_service("set_button", {
                 "index": idx, 
                 "json_value": json.dumps(await self.async_prepare_button(button)),
             })
@@ -575,7 +575,7 @@ class Coordinator(DataUpdateCoordinator):
                     "height": size[1],
                     "id": "image",
                 })
-        self.call_device_service("show_more", {
+        await self.async_call_device_service("show_more", {
             "json_value": json.dumps({
                 "features": features, "id": entity_id,
                 "immediate": immediate,
@@ -596,7 +596,7 @@ class Coordinator(DataUpdateCoordinator):
             }]}]
         }
 
-    def call_device_service(self, name: str, data: dict) -> bool:
+    async def async_call_device_service(self, name: str, data: dict) -> bool:
         if self.is_browser:
             _LOGGER.debug(f"call_device_service: browser entry, emit event {name} with {data}")
             self.hass.bus.async_fire("lvgl_dashboard_service_call", {
@@ -612,7 +612,7 @@ class Coordinator(DataUpdateCoordinator):
             if service.name == name:
                 # _LOGGER.debug(f"call_device_service: call service {name} with {data}, spec: {service}")
                 # self.hass.async_add_executor_job(self._entry_data.client.execute_service, service, data)
-                self._entry_data.client.execute_service(service, data)
+                await self._entry_data.client.execute_service(service, data)
                 return True
         _LOGGER.warning(f"call_device_service: service not found: {name}")
         return False
@@ -673,13 +673,13 @@ class Coordinator(DataUpdateCoordinator):
         }, blocking=False)
 
     async def async_send_show_page(self, index: int):
-        self.call_device_service("show_page", {"page": index})
+        await self.async_call_device_service("show_page", {"page": index})
 
     async def async_send_hide_more_page(self):
-        self.call_device_service("hide_more", {})
+        await self.async_call_device_service("hide_more", {})
     
     async def async_send_play_rtttl(self, song: str):
-        self.call_device_service("play_rtttl", {"song": song})
+        await self.async_call_device_service("play_rtttl", {"song": song})
 
     async def async_exec_action(self, action: dict | None, item_def: dict) -> bool:
         if not action:
