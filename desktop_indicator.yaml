@@ -36,7 +36,7 @@ time:
     timezone: Europe/Berlin
 
 packages:
-  common: !include {file: _dashboard.yaml, vars: {api_port: 6054, endian: big_endian}}
+  common: !include {file: _dashboard.yaml, vars: {api_port: 6054, endian: big_endian, api_reboot: 0s}}
 
 output:
   - platform: template

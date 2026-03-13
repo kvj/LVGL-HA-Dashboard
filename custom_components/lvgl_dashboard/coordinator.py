@@ -297,6 +297,7 @@ class Coordinator(DataUpdateCoordinator):
             icon_size = int(self._g(item, "size", ICON_SMALL, state=state))
             return {
                 "name": self._g(item, "heading", self.name_from_state(entity_id, state), state=state),
+                "large": self._g(item, "large", False),
                 "icon": self._mdi_font.get_icon_value(icon, icon_size),
             }
         if layout == "picture":

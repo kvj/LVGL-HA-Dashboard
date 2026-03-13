@@ -39,6 +39,8 @@ font:
     size: 30
     glyphsets:
       - GF_Latin_Core
+      - GF_Greek_Core
+      - GF_Cyrillic_Core
 
 api:
   id: api_server
