@@ -62,7 +62,7 @@ def get_dashboards(hass: HomeAssistant) -> dict:
 
 def _register_coordinator_service(hass: HomeAssistant,  name: str, handler):
     async def handler_(call):
-        for entry_id in await service.async_extract_config_entry_ids(hass, call):
+        for entry_id in await service.async_extract_config_entry_ids(call):
             if entry := hass.config_entries.async_get_entry(entry_id):
                 _LOGGER.debug(f"_register_coordinator_service: {name}: {entry.domain}")
                 if hasattr(entry, "runtime_data") and entry.domain == DOMAIN:
