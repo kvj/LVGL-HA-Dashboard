@@ -103,7 +103,8 @@ class Coordinator(DataUpdateCoordinator):
                 ids.add(self._g(item_, "entity_id"))
         return ids
     
-    async def _async_on_state_change(self, entity_id: str, from_state, to_state):
+    async def _async_on_state_change(self, event):
+        entity_id = event.data["entity_id"]
         _LOGGER.debug(f"_async_on_state_change: {entity_id}")
         await self.async_send_values(entity_id)
 
@@ -536,7 +537,7 @@ class Coordinator(DataUpdateCoordinator):
                 "json_value": json.dumps(await self.async_prepare_button(button)),
             })
             idx += 1
-        self._on_entity_state_handler = event.async_track_state_change(
+        self._on_entity_state_handler = event.async_track_state_change_event(
             self.hass, 
             all_entity_ids, 
             action=self._async_on_state_change
